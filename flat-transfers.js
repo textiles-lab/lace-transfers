@@ -133,6 +133,11 @@ function flat_transfers(offsets, firsts, xfer) {
 				if (firsts[r2]) first = 'r2';
 			}
 
+			//console.log(
+			//	"r0:" + r0 + " (ofs:" + offsets[r0] + ")"
+			//	+ " r1:" + r1 + " (ofs:" + offsets[r1] + ")"
+			//	+ " r2:" + r2 + " (ofs:" + offsets[r2] + ")"
+			//	+ " first:" + first); //DEBUG
 
 			//general plan:
 			// - pick everything up
@@ -146,19 +151,20 @@ function flat_transfers(offsets, firsts, xfer) {
 
 			let todo = []; //recursive calls to make later for dropped but not resolved ranges.
 			function dropRange(min, max, ofs) {
+				if (max < min) return;
 				for (let i = min; i <= max; ++i) {
 					xfer('b', i+currentOffset, 'f', i+ofs);
 				}
 				todo.push({min:min, max:max, ofs:ofs});
 			}
 			let next = l;
-			for (let ofs = currentOffset+1; ofs < offsets[r0]; ++ofs) {
+			for (let ofs = currentOffset; ofs < offsets[r0]; ++ofs) {
 				console.assert(next <= r0, "left edge shouldn't pass right");
 				console.assert(offsets[next] >= ofs, "left edge must still want to go left");
 				//figure out how much to drop so that next stitch will be happy at next offset:
-				let first = next;
+				let prev = next;
 				while (offsets[next] <= ofs) ++next;
-				dropRange(first, next-1, ofs);
+				dropRange(prev, next-1, ofs);
 
 				if (first === 'r2') { //r2-first case drops r2, r1 at natural time
 					console.assert(r2 !== r1 && r1 !== r0, "r2 shouldn't be marked first if not a triple");
@@ -184,8 +190,9 @@ function flat_transfers(offsets, firsts, xfer) {
 					}
 				}
 			}
+			//console.log("=== return at " + offsets[r0] + " ==="); //DEBUG
 			console.assert(next <= r, "left edge shouldn't pass right");
-			console.assert(offsets[next] >= offsets[r], "left edge must still want to go left");
+			console.assert(offsets[next] >= offsets[r0], "left edge must still want to go left");
 			dropRange(next, r0, offsets[r0]);
 
 			if (first === 'r0') {
@@ -201,7 +208,31 @@ function flat_transfers(offsets, firsts, xfer) {
 
 		//----------- the negative-negative case --------------
 		} else if (offsets[l] < currentOffset && offsets[r] < currentOffset) {
-			console.assert(false, "TODO: the negative-negative case");
+			//console.assert(false, "the negative case"); //DEBUG
+
+			//HACK: reflect offsets/firsts, swap out xfer, and recurse to get to the positive case:
+
+			let storedOffsets = offsets;
+			let storedFirsts = firsts;
+			let storedXfer = xfer;
+
+			offsets = offsets.slice();
+			offsets.reverse();
+			for (let i = 0; i < offsets.length; ++i) {
+				offsets[i] = -offsets[i];
+			}
+			firsts = firsts.slice();
+			firsts.reverse();
+
+			xfer = function(fromBed, fromNeedle, toBed, toNeedle) {
+				storedXfer(fromBed, offsets.length-1-fromNeedle, toBed, offsets.length-1-toNeedle);
+			};
+
+			resolveRange(offsets.length-1-max, offsets.length-1-min, -currentOffset);
+
+			offsets = storedOffsets;
+			firsts = storedFirsts;
+			xfer = storedXfer;
 
 		//----------- the positive-negative case --------------
 		} else if (offsets[l] > currentOffset && offsets[r] < currentOffset) {
@@ -391,12 +422,29 @@ if (require.main === module) {
 		}
 
 	}
+
+
 	test([+1,+1,+2,+2,+3,+3,+2,+1],
 	     [ 0, 0, 0, 0, 0, 1, 0, 0]);
+
+	test([+1,+2,+3,+3,+2,+2,+1,+1],
+	     [ 0, 0, 0, 0, 1, 1, 0, 0]);
+
+	test([-1,-1,-2,-2,-3,-3,-2,-1],
+	     [ 0, 0, 1, 1, 0, 0, 0, 0]);
 
 	test([ 0, 0,+1,+1,+2,+2,+1,+1, 0, 0,+1, 0],
 	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
 
+	test([-4,-3,-2,-1, 0,+1,+2,+3],
+	     [ 0, 0, 0, 0, 0, 0, 1, 0]);
+
+
+	test([+4,+4,+3,+3,+2,+2,+1,+1, 0,-1,-1,-2,-2,-3,-3],
+	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
+
+	test([-4,-4,-3,-3,-2,-2,-1,-1, 0,+1,+1,+2,+2,+3,+3],
+	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
 
 
 	test([ 0,-1,-1, 0, 1, 1, 1, 0,-1, 1, 0, 0],
@@ -404,5 +452,4 @@ if (require.main === module) {
 
  	test([ 1, 0, 1, 0, 1, 0, 0,-1, 0,-1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1],
 	     [ 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]);
-
 }
