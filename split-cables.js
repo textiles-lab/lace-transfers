@@ -49,8 +49,8 @@ function split_cables(offsets) {
 			let flat = offsets[i] - ofs;
 			for (let prevOfs = MIN_OFFSET; prevOfs <= MAX_OFFSET; ++prevOfs) {
 				let prevFlat = offsets[i-1] - prevOfs;
-				if (prevFlat > flat) continue; //can't have cables in flat
-				if (prevFlat == 1+flat) { //decrease in flat
+				if (prevFlat > 1+flat) continue; //can't have cables in flat
+				if (prevFlat === 1+flat) { //decrease in flat
 					//shouldn't decrease in flat if no decrease in offsets:
 					if (offsets[i-1] !== 1+offsets[i]) continue;
 				}
