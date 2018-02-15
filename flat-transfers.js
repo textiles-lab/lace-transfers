@@ -367,11 +367,47 @@ if (require.main === module) {
 			}
 			console.log("index:" + infoI);
 		}
+		let log = [];
 
 		function xfer(fromBed, fromIndex, toBed, toIndex) {
-			console.log("xfer " + fromBed + fromIndex + " " + toBed + toIndex);
+			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
+			console.log(cmd);
+			log.push(cmd);
 
 			console.assert((fromBed === 'f' && toBed === 'b') || (fromBed === 'b' && toBed === 'f'), "must xfer f <=> b");
+
+			//check for valid racking:
+			let at = [];
+			for (let i = 0; i < offsets.length; ++i) {
+				at.push(null);
+			}
+			for (var n in needles) {
+				let m = n.match(/^([fb])(-?\d+)$/);
+				console.assert(m);
+				needles[n].forEach(function(s){
+					console.assert(at[s] === null, "each stitch can only be in one place");
+					at[s] = {bed:m[1], needle:parseInt(m[2])};
+				});
+			}
+
+			let minRacking = -Infinity;
+			let maxRacking = Infinity;
+			for (let i = 1; i < offsets.length; ++i) {
+				if (at[i-1].bed === at[i].bed) continue;
+				let slack = Math.max(1, Math.abs( i+offsets[i] - (i-1+offsets[i-1]) ));
+				let back  = (at[i].bed === 'b' ? at[i].needle : at[i-1].needle);
+				let front = (at[i].bed === 'b' ? at[i-1].needle : at[i].needle);
+
+				//-slack <= back + racking - front <= slack
+				minRacking = Math.max(minRacking, -slack - back + front);
+				maxRacking = Math.min(maxRacking,  slack - back + front);
+			}
+			console.assert(minRacking <= maxRacking, "there is a valid racking for this stitch configuration");
+			let racking = (fromBed === 'f' ? fromIndex - toIndex : toIndex - fromIndex);
+			console.assert(minRacking <= racking && racking <= maxRacking, "required racking " + racking + " is outside [" + minRacking + ", " + maxRacking + "] valid range. (" + cmd + ")");
+
+
+
 			var from = needles[fromBed + fromIndex];
 			if (!((toBed + toIndex) in needles)) needles[toBed + toIndex] = [];
 			var to = needles[toBed + toIndex];
@@ -381,7 +417,7 @@ if (require.main === module) {
 
 			while (from.length) to.push(from.pop());
 
-			dumpNeedles(); //DEBUG
+			//dumpNeedles(); //DEBUG
 		}
 
 		let infoI = "";
@@ -421,6 +457,10 @@ if (require.main === module) {
 			}
 		}
 
+		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
+
+		return log;
+
 	}
 
 
@@ -445,7 +485,6 @@ if (require.main === module) {
 
 	test([-4,-4,-3,-3,-2,-2,-1,-1, 0,+1,+1,+2,+2,+3,+3],
 	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
-
 
 	test([ 0,-1,-1, 0, 1, 1, 1, 0,-1, 1, 0, 0],
 	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0]);
