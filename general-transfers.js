@@ -29,11 +29,6 @@ function general_transfers(offsets, firsts, limit, xfer) {
 	if (offsets.length !== firsts.length) {
 		throw "Offsets and firsts should be the same length.";
 	}
-	for (let i = 0; i + 1 < offsets.length; ++i) {
-		if (offsets[i] === 1 && offsets[i+1] === -1) {
-			throw "Offsets should not contain cables (that is, [1,-1] subarrays)";
-		}
-	}
 	console.assert(typeof(limit) === 'number', "racking limit should be a number");
 
 	//split into flat + cables (and hold cables for later).
@@ -313,6 +308,9 @@ if (require.main === module) {
 
 	test([+1,+1,+2,+2,+3,+3,+2,+1],
 	     [ 0, 0, 0, 0, 0, 1, 0, 0], 2);
+
+	test([ 0, 0,+1, 0, 0,+1,-1, 0, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0], 2);
 
 /*
 	test([+1,+2,+3,+3,+2,+2,+1,+1],
