@@ -28,6 +28,10 @@ function limit_offsets(offsets, limit) {
 	console.assert(Array.isArray(offsets), "First parameter should be array of offsets.");
 	console.assert(typeof(limit) === 'number', "Second parameter should be racking limit.");
 
+	for (let i = 1; i < offsets.length; ++i) {
+		console.assert(offsets[i-1] <= 1+offsets[i], "limit_offsets doesn't work on cables");
+	}
+
 	//"fancy" dynamic programming solution.
 	// state:
 	//   previous stitch index
@@ -77,8 +81,8 @@ function limit_offsets(offsets, limit) {
 		}
 	}
 	
-	//DEBUG:
-	for (let i = 0; i < offsets.length; ++i) {
+	//DEBUG: dump cost matrix:
+	/*for (let i = 0; i < offsets.length; ++i) {
 		let line = "cost[" + i + "]:";
 		for (let short = MIN_OFFSET; short <= MAX_OFFSET; ++short) {
 			let cost = costs[i*OFFSET_COUNT + (short-MIN_OFFSET)];
@@ -90,7 +94,7 @@ function limit_offsets(offsets, limit) {
 			}
 		}
 		console.log(line);
-	}
+	}*/
 
 	//find best last step:
 	let best = 0xffffffff;
@@ -173,14 +177,18 @@ if (require.main === module) {
 		for (let i = 0; i < offsets.length; ++i) {
 			console.assert(ret.shortOffsets[i] + ret.longOffsets[i] === offsets[i], "offsets sum properly");
 			if (i + 1 < offsets.length) {
-				console.assert(ret.shortOffsets[i] <= ret.shortOffsets[i+1], "no short cables");
-				console.assert(ret.longOffsets[i] <= ret.longOffsets[i+1], "no long cables");
+				console.assert(ret.shortOffsets[i] <= 1+ret.shortOffsets[i+1], "no short cables");
+				console.assert(ret.longOffsets[i] <= 1+ret.longOffsets[i+1], "no long cables");
 				console.assert( !(ret.shortOffsets[i] === 1+ret.shortOffsets[i+1] && (ret.longOffsets[i] !== 0 || ret.longOffsets[i+1] !== 0) ), "no xferring decreased stitches.");
 			}
 		}
+
+		if (!ret.longOffsets.every(function(o) { return o === 0; })) {
+			test(ret.longOffsets, limit);
+		}
 	}
 
-	test([ 2, 2, 0, -2, -2 ], 1);
-	test([ -5, -5, -5, -4, -4 ], 3);
-	test([ -3, -3, -5, -6, -6 ], 2);
+	test([ -2, -2, 0, 2, 2 ], 1);
+	test([ 10, 10, 9, 8, 8, 8, 8], 3);
+	test([ -20, 10 ], 5);
 }

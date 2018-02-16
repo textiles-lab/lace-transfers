@@ -167,6 +167,7 @@ if (require.main === module) {
 			backStacks.push([]);
 			moved.push(false);
 		}
+		let log = [];
 		function xferToBack(i) {
 			var stack = frontStacks[i];
 			console.assert(stack.length === 1 && stack[0] === i, "xferToBack should be called on a lone loop on the front");
@@ -175,7 +176,9 @@ if (require.main === module) {
 			frontStacks[i] = [];
 			moved[i] = true;
 
-			console.log("xfer " + 'f' + i + " " + 'b' + i);
+			let cmd = "xfer " + 'f' + i + " " + 'b' + i;
+			log.push(cmd);
+			console.log(cmd);
 		}
 		function xferToFront(i, ofs) {
 			console.assert(offsets[i] === ofs, "lace_transfers must pass offsets[i]");
@@ -187,7 +190,9 @@ if (require.main === module) {
 			backStacks[i] = [];
 			frontStacks[i+ofs].push(i);
 
-			console.log("xfer " + 'b' + i + " " + 'f' + (i+ofs) + " ; ofs: " + ofs);
+			let cmd = "xfer " + 'b' + i + " " + 'f' + (i+ofs) + " ; ofs: " + ofs;
+			log.push(cmd);
+			console.log(cmd);
 		}
 
 		let infoI = "";
@@ -236,6 +241,8 @@ if (require.main === module) {
 			console.log("stitches:" + layers[l]);
 		}
 		console.log("   index:" + infoI);
+		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
+
 	}
 
 	test([ 0,-1,-1, 0, 1, 1, 1, 0,-1, 1, 0, 0],
