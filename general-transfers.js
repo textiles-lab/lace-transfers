@@ -13,6 +13,7 @@
 // firsts: array of the same length as offsets;
 //     if Boolean(offsets[i]) is true, stitch[i] will
 //     arrive at its destination needle first.
+// orders: for cables, order values of inner stitches determine which passes in front (greater order passes in front)
 // limit: maximum racking value
 //
 // xfer: output function
@@ -23,58 +24,54 @@
 const split_cables = require('./split-cables.js').split_cables;
 const limit_offsets = require('./limit-offsets.js').limit_offsets;
 const flat_transfers = require('./flat-transfers.js').flat_transfers;
+const cable_transfers = require('./cable-transfers.js').cable_transfers;
 
-function general_transfers(offsets, firsts, limit, xfer) {
+function general_transfers(offsets, firsts, orders, limit, xfer) {
 	//Check inputs:
 	if (offsets.length !== firsts.length) {
 		throw "Offsets and firsts should be the same length.";
 	}
 	console.assert(typeof(limit) === 'number', "racking limit should be a number");
 
-	//split into flat + cables (and hold cables for later).
-	let fc = split_cables(offsets);
+	//will maintain/update minNeedle/maxNeedle and mapped* based on current state:
+	let minNeedle;
+	let maxNeedle;
+	let mappedOffsets;
+	let mappedFirsts;
+	let mappedOrders;
+	let mappedXfer; //xfer function that undoes mapping (and handles empty needle tracking)
 
-	//resolve all the flat offsets:
-	let remaining = fc.flatOffsets;
-	while (true) {
-		console.log("remaining: " + offsetsToString(remaining));
+	function setMapped(fromOffsets, fromFirsts, fromOrders, atOffsets) {
+		minNeedle = Infinity;
+		maxNeedle =-Infinity;
+		mappedOffsets = [];
+		mappedFirsts = [];
+		mappedOrders = [];
 
-		let done = true;
-		for (let i = 0; i < remaining.length; ++i) {
-			if (remaining[i] !== 0) {
-				done = false;
-				break;
-			}
-		}
-		if (done) break;
-
-		let sl = limit_offsets(remaining, limit);
-
-		let minNeedle = Infinity;
-		let maxNeedle =-Infinity;
-		let mappedOffsets = [];
-		let mappedFirsts = [];
-
-		function setOffset(needle, offset, first) {
+		function setOffset(needle, offset, first, order) {
 			if (minNeedle > maxNeedle) {
 				minNeedle = maxNeedle = needle;
 				mappedOffsets.push(null);
 				mappedFirsts.push(false);
+				mappedOrders.push(0);
 			}
 			while (needle < minNeedle) {
 				--minNeedle;
 				mappedOffsets.unshift(null);
 				mappedFirsts.unshift(false);
+				mappedOrders.unshift(0);
 			}
 			while (needle > maxNeedle) {
 				++maxNeedle;
 				mappedOffsets.push(null);
 				mappedFirsts.push(false);
+				mappedOrders.unshift(0);
 			}
 			console.assert(minNeedle <= needle && needle <= maxNeedle);
 			if (mappedOffsets[needle-minNeedle] === null) {
 				mappedOffsets[needle-minNeedle] = offset;
 				mappedFirsts[needle-minNeedle] = first;
+				mappedOrders[needle-minNeedle] = order;
 			} else {
 				console.assert(mappedOffsets[needle-minNeedle] === offset, "stacked stitches should have same destination");
 				console.assert(offset === 0, "stacked stitches shouldn't be moved");
@@ -84,9 +81,9 @@ function general_transfers(offsets, firsts, limit, xfer) {
 		}
 
 		//map offsets to indices based on current offsets:
-		for (let i = 0; i < remaining.length; ++i) {
-			let at = i + (fc.flatOffsets[i] - remaining[i]);
-			setOffset(at, sl.shortOffsets[i], firsts[i]);
+		for (let i = 0; i < atOffsets.length; ++i) {
+			let at = i + atOffsets[i];
+			setOffset(at, fromOffsets[i], fromFirsts[i], fromOrders[i]);
 		}
 
 		let ignoreNeedles = {};
@@ -100,12 +97,12 @@ function general_transfers(offsets, firsts, limit, xfer) {
 			}
 		}
 
-		console.log("mapped: " + offsetsToString(mappedOffsets)); //DEBUG
+		//console.log("mapped: " + offsetsToString(mappedOffsets)); //DEBUG
 
 		//resolve mappedOffsets:
 
 		//mappedXfer drops xfers from empty needles, as tracked by ignoreNeedles map:
-		function mappedXfer(fromBed, fromIndex, toBed, toIndex) {
+		mappedXfer = function (fromBed, fromIndex, toBed, toIndex) {
 			let fromNeedle = fromIndex + minNeedle;
 			let toNeedle = toIndex + minNeedle;
 
@@ -123,6 +120,35 @@ function general_transfers(offsets, firsts, limit, xfer) {
 				}
 			}
 		}
+	};
+
+
+	//split into flat + cables (and hold cables for later).
+	let fc = split_cables(offsets);
+
+	//resolve all the flat offsets:
+	let remaining = fc.flatOffsets;
+	while (true) {
+		//console.log("remaining: " + offsetsToString(remaining)); //DEBUG
+
+		let done = true;
+		for (let i = 0; i < remaining.length; ++i) {
+			if (remaining[i] !== 0) {
+				done = false;
+				break;
+			}
+		}
+		if (done) break;
+
+		let sl = limit_offsets(remaining, limit);
+
+		let atOffsets = [];
+		for (let i = 0; i < offsets.length; ++i) {
+			atOffsets.push(fc.flatOffsets[i] - remaining[i]);
+		}
+
+		setMapped(sl.shortOffsets, firsts, orders, atOffsets);
+	
 		flat_transfers(mappedOffsets, mappedFirsts, mappedXfer);
 
 
@@ -131,6 +157,7 @@ function general_transfers(offsets, firsts, limit, xfer) {
 	}
 
 	//TODO: resolve fc.cableOffsets!
+	console.assert(fc.cableOffsets.every(function(o){ return o === 0; }), "TODO: implement cable offsets");
 
 }
 
@@ -281,14 +308,14 @@ if (require.main === module) {
 			if (firsts[i]) {
 				infoF += " *";
 			} else {
-				infoF += "  ";
+				infoF += " .";
 			}
 		}
 		console.log(" index:" + infoI);
 		console.log("offset:" + infoO);
 		console.log(" first:" + infoF);
 
-		general_transfers(offsets, firsts, limit, xfer);
+		general_transfers(offsets, firsts, orders, limit, xfer);
 
 		dumpNeedles();
 
