@@ -156,8 +156,15 @@ function general_transfers(offsets, firsts, orders, limit, xfer) {
 		remaining = sl.longOffsets;
 	}
 
-	//TODO: resolve fc.cableOffsets!
-	console.assert(fc.cableOffsets.every(function(o){ return o === 0; }), "TODO: implement cable offsets");
+	//resolve fc.cableOffsets
+	let atOffsets = [];
+	for (let i = 0; i < offsets.length; ++i) {
+		atOffsets.push(fc.flatOffsets[i]);
+	}
+	setMapped(fc.cableOffsets, firsts, orders, atOffsets);
+	cable_transfers(mappedOffsets, mappedOrders, mappedXfer);
+
+	//console.assert(fc.cableOffsets.every(function(o){ return o === 0; }), "TODO: implement cable offsets");
 
 }
 
