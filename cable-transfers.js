@@ -18,6 +18,11 @@ function cable_transfers(offsets, orders, xfer) {
 		throw "Offsets and firsts should be the same length.";
 	}
 
+	let done = [];
+	for (let i = 0; i < offsets.length; ++i) {
+		done.push(false);
+	}
+
 	//This code handles
 	//   simple cables of the form:
 	// look for L  L  L   M M  R R R R
@@ -55,12 +60,18 @@ function cable_transfers(offsets, orders, xfer) {
 
 
 					for (let i = l0; i < l0 + l; ++i) {
+						console.assert(done[i] === false, "should never do a cable twice");
+						done[i] = true;
 						xfer('f', i, 'b', i);
 					}
 					for (let i = m0; i < m0 + m; ++i) {
+						console.assert(done[i] === false, "should never do a cable twice");
+						done[i] = true;
 						xfer('f', i, 'b', i);
 					}
 					for (let i = r0; i < r0 + r; ++i) {
+						console.assert(done[i] === false, "should never do a cable twice");
+						done[i] = true;
 						xfer('f', i, 'b', i);
 					}
 
@@ -98,6 +109,12 @@ function cable_transfers(offsets, orders, xfer) {
 				if (found) break;
 			}
 			if (found) break;
+		}
+	}
+
+	for (let i = 0; i < offsets.length; ++i) {
+		if (offsets[i] !== 0 && done[i] !== true) {
+			throw "cable_transfers failed to find a complete cable plan with its limited vocabulary";
 		}
 	}
 
