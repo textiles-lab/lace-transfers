@@ -26,12 +26,35 @@ const limit_offsets = require('./limit-offsets.js').limit_offsets;
 const flat_transfers = require('./flat-transfers.js').flat_transfers;
 const cable_transfers = require('./cable-transfers.js').cable_transfers;
 
-function general_transfers(offsets, firsts, orders, limit, xfer) {
+function general_transfers(offsets, firsts, orders, limit, outXfer) {
 	//Check inputs:
 	if (offsets.length !== firsts.length) {
 		throw "Offsets and firsts should be the same length.";
 	}
 	console.assert(typeof(limit) === 'number', "racking limit should be a number");
+
+	//----- checking code: make sure xfers do the right thing! -----
+	let checkNeedles = {};
+	for (let i = 0; i < offsets.length; ++i) {
+		checkNeedles['f' + i] = [i];
+	}
+	function xfer(fromBed, fromIndex, toBed, toIndex) {
+		console.assert((fromBed + fromIndex) in checkNeedles, "must be xferring from something");
+		var from = checkNeedles[fromBed + fromIndex];
+		var to;
+		if (!((toBed + toIndex) in checkNeedles)) {
+			checkNeedles[toBed + toIndex] = [];
+		}
+		to = checkNeedles[toBed + toIndex];
+		while (from.length) {
+			to.push(from.pop());
+		}
+		delete checkNeedles[fromBed + fromIndex];
+
+		outXfer(fromBed, fromIndex, toBed, toIndex);
+	}
+	//----- -------------------------------------------------- -----
+	
 
 	//will maintain/update minNeedle/maxNeedle and mapped* based on current state:
 	let minNeedle;
@@ -165,6 +188,19 @@ function general_transfers(offsets, firsts, orders, limit, xfer) {
 	cable_transfers(mappedOffsets, mappedOrders, mappedXfer);
 
 	//console.assert(fc.cableOffsets.every(function(o){ return o === 0; }), "TODO: implement cable offsets");
+
+
+	//----- checking code: make sure xfers did the right thing! -----
+	for (let i = 0; i < offsets.length; ++i) {
+		let dest = 'f' + (i + offsets[i]);
+		console.assert(dest in checkNeedles, "target needle has something");
+		console.assert(checkNeedles[dest].indexOf(i) !== -1, "stitch didn't get to target");
+		if (firsts[i]) {
+			console.assert(checkNeedles[dest].indexOf(i) === 0, "stitch didn't get to target first, though marked first");
+		}
+	}
+	//----- -------------------------------------------------- -----
+
 
 }
 
