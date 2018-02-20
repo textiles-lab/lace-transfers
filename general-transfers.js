@@ -74,6 +74,9 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 		function setOffset(needle, offset, first, order) {
 			if (minNeedle > maxNeedle) {
 				minNeedle = maxNeedle = needle;
+				console.assert(mappedOffsets.length === 0);
+				console.assert(mappedFirsts.length === 0);
+				console.assert(mappedOrders.length === 0);
 				mappedOffsets.push(null);
 				mappedFirsts.push(false);
 				mappedOrders.push(0);
@@ -88,7 +91,7 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 				++maxNeedle;
 				mappedOffsets.push(null);
 				mappedFirsts.push(false);
-				mappedOrders.unshift(0);
+				mappedOrders.push(0);
 			}
 			console.assert(minNeedle <= needle && needle <= maxNeedle);
 			if (mappedOffsets[needle-minNeedle] === null) {
@@ -143,6 +146,7 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 				}
 			}
 		}
+
 	};
 
 
@@ -185,6 +189,8 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 		atOffsets.push(fc.flatOffsets[i]);
 	}
 	setMapped(fc.cableOffsets, firsts, orders, atOffsets);
+	//console.log(mappedOrders); //DEBUG
+
 	cable_transfers(mappedOffsets, mappedOrders, mappedXfer);
 
 	//console.assert(fc.cableOffsets.every(function(o){ return o === 0; }), "TODO: implement cable offsets");
