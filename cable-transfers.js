@@ -23,6 +23,9 @@ function cable_transfers(offsets, orders, xfer) {
 		done.push(false);
 	}
 
+	//sort cables into passes based on the rackings needed:
+	let sortedBlocks = {};
+
 	//This code handles
 	//   simple cables of the form:
 	// look for L  L  L   M M  R R R R
@@ -59,26 +62,47 @@ function cable_transfers(offsets, orders, xfer) {
 					//console.log( "[" + l0 + ", " + (l0+l) + ")[" + m0 + ", " + (m0+m) + ")[" + r0 + ", " + (r0+r) + ")" );
 					//console.log(ol,om,or);
 
+					let blocks = [];
+
+					function addBlock(min, max, from, to, offset) {
+						if (min > max) return; //empty range
+						if (blocks.length === 0
+						 || blocks[blocks.length-1].from !== from
+						 || blocks[blocks.length-1].to !== to
+						 || blocks[blocks.length-1].offset !== offset) {
+							blocks.push({from:from, to:to, offset:offset, needles:{}});
+						}
+						for (let n = min; n <= max; ++n) {
+							blocks[blocks.length-1].needles[n.toString()] = true;
+						}
+					}
+
+					addBlock(l0, l0+l-1, 'f', 'b', 0);
+					addBlock(m0, m0+m-1, 'f', 'b', 0);
+					addBlock(r0, r0+r-1, 'f', 'b', 0);
 
 					for (let i = l0; i < l0 + l; ++i) {
 						console.assert(done[i] === false, "should never do a cable twice");
 						done[i] = true;
-						xfer('f', i, 'b', i);
+						//xfer('f', i, 'b', i);
 					}
 					for (let i = m0; i < m0 + m; ++i) {
 						console.assert(done[i] === false, "should never do a cable twice");
 						done[i] = true;
-						xfer('f', i, 'b', i);
+						//xfer('f', i, 'b', i);
 					}
 					for (let i = r0; i < r0 + r; ++i) {
 						console.assert(done[i] === false, "should never do a cable twice");
 						done[i] = true;
-						xfer('f', i, 'b', i);
+						//xfer('f', i, 'b', i);
 					}
 
-					function do_l() { for (let i = l0; i < l0 + l; ++i) xfer('b', i, 'f', i+L); }
-					function do_r() { for (let i = r0; i < r0 + r; ++i) xfer('b', i, 'f', i+R); }
-					function do_m() { for (let i = m0; i < m0 + m; ++i) xfer('b', i, 'f', i+M); }
+					//function do_l() { for (let i = l0; i < l0 + l; ++i) xfer('b', i, 'f', i+L); }
+					//function do_r() { for (let i = r0; i < r0 + r; ++i) xfer('b', i, 'f', i+R); }
+					//function do_m() { for (let i = m0; i < m0 + m; ++i) xfer('b', i, 'f', i+M); }
+					function do_l() { addBlock(l0, l0+l-1, 'b', 'f', L); }
+					function do_m() { addBlock(m0, m0+m-1, 'b', 'f', M); }
+					function do_r() { addBlock(r0, r0+r-1, 'b', 'f', R); }
 
 					if (ol >= or && ol >= om) {
 						do_l();
@@ -103,6 +127,25 @@ function cable_transfers(offsets, orders, xfer) {
 						}
 					}
 
+					let key = "";
+					blocks.forEach(function(b){
+						if (key !== "") key += " ";
+						key += b.from + b.to + b.offset.toString();
+					});
+					if (!(key in sortedBlocks)) {
+						sortedBlocks[key] = blocks;
+					} else {
+						let target = sortedBlocks[key];
+						for (let b = 0; b < blocks.length; ++b) {
+							console.assert(target[b].from === blocks[b].from && target[b].to === blocks[b].to && target[b].offset === blocks[b].offset, "block being merged with matching block");
+							for (let n in blocks[b].needles) {
+								console.assert(!(n in target[b].needles), "would be weird if a needle showed up twice");
+								target[b].needles[n] = true;
+							}
+						}
+					}
+
+
 					found = true;
 					l0 += (l + r + m) - 1;
 					break;
@@ -117,6 +160,15 @@ function cable_transfers(offsets, orders, xfer) {
 		if (offsets[i] !== 0 && done[i] !== true) {
 			throw "cable_transfers failed to find a complete cable plan with its limited vocabulary";
 		}
+	}
+
+	//actually play the sorted blocks back:
+	for (let sbn in sortedBlocks) {
+		sortedBlocks[sbn].forEach(function(block){
+			for (let n in block.needles) {
+				xfer(block.from, parseInt(n), block.to, parseInt(n) + block.offset);
+			}
+		});
 	}
 
 }
