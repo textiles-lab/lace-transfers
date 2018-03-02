@@ -24,6 +24,7 @@
 const split_cables = require('./split-cables.js').split_cables;
 const limit_offsets = require('./limit-offsets.js').limit_offsets;
 const flat_transfers = require('./flat-transfers.js').flat_transfers;
+const lace_transfers = require('./lace-transfers.js').lace_transfers;
 const cable_transfers = require('./cable-transfers.js').cable_transfers;
 
 function general_transfers(offsets, firsts, orders, limit, outXfer) {
@@ -175,8 +176,17 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 		}
 
 		setMapped(sl.shortOffsets, firsts, orders, atOffsets);
-	
-		flat_transfers(mappedOffsets, mappedFirsts, mappedXfer);
+
+		let useLace = mappedOffsets.every(function(o){ return Math.abs(o) <= 1; });
+
+		if (useLace) {
+			lace_transfers(mappedOffsets, mappedFirsts,
+				function(i) { mappedXfer('f', i, 'b', i); },
+				function(i, ofs) { mappedXfer('b', i, 'f', i + ofs); }
+				);
+		} else {
+			flat_transfers(mappedOffsets, mappedFirsts, mappedXfer);
+		}
 
 
 		//longOffsets is all that remains:
