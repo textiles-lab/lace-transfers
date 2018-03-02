@@ -228,7 +228,7 @@ function offsetsToString(offsets) {
 
 if (require.main === module) {
 	console.log("Doing some test general transfers.");
-	function test(offsets, firsts, limit) {
+	function test(offsets, firsts, orders, limit) {
 		let needles = {};
 		for (let i = 0; i < offsets.length; ++i) {
 			needles['f' + i] = [i];
@@ -383,10 +383,14 @@ if (require.main === module) {
 
 
 	test([+1,+1,+2,+2,+3,+3,+2,+1],
-	     [ 0, 0, 0, 0, 0, 1, 0, 0], 2);
+	     [ 0, 0, 0, 0, 0, 1, 0, 0],
+		 [ 0, 0, 0, 0, 0, 0, 0, 0],
+		 2);
 
 	test([ 0, 0,+1, 0, 0,+1,-1, 0, 0],
-	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0], 2);
+	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		 [ 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		 2);
 
 /*
 	test([+1,+2,+3,+3,+2,+2,+1,+1],
