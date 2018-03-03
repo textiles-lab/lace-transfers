@@ -18,10 +18,16 @@ function cable_transfers(offsets, orders, xfer) {
 		throw "Offsets and firsts should be the same length.";
 	}
 
+	let haveCables = false;
 	let done = [];
 	for (let i = 0; i < offsets.length; ++i) {
 		done.push(false);
+		if (offsets[i] !== 0) {
+			haveCables = true;
+		}
 	}
+
+	if (!haveCables) return;
 
 	//sort cables into passes based on the rackings needed:
 	let sortedBlocks = {};

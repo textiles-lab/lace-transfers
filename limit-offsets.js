@@ -32,6 +32,25 @@ function limit_offsets(offsets, limit) {
 		console.assert(offsets[i-1] <= 1+offsets[i], "limit_offsets doesn't work on cables");
 	}
 
+	//early-out if offsets are all within limit:
+	let inLimit = true;
+	for (let i = 0; i < offsets.length; ++i) {
+		if (Math.abs(offsets[i]) > limit) {
+			inLimit = false;
+			break;
+		}
+	}
+	if (inLimit) {
+		let longOffsets = [];
+		for (let i = 0; i < offsets.length; ++i) {
+			longOffsets.push(0);
+		}
+		return {
+			shortOffsets:offsets.slice(),
+			longOffsets:longOffsets
+		};
+	}
+
 	//"fancy" dynamic programming solution.
 	// state:
 	//   previous stitch index
