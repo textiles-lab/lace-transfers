@@ -300,7 +300,7 @@ if (require.main === module) {
 
 		function xfer(fromBed, fromIndex, toBed, toIndex) {
 			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
-			console.log(cmd);
+			//console.log(cmd);
 			log.push(cmd);
 
 			console.assert((fromBed === 'f' && toBed === 'b') || (fromBed === 'b' && toBed === 'f'), "must xfer f <=> b");
@@ -346,7 +346,7 @@ if (require.main === module) {
 
 			while (from.length) to.push(from.pop());
 
-			dumpNeedles(); //DEBUG
+			//dumpNeedles(); //DEBUG
 		}
 
 		let infoI = "";
@@ -428,4 +428,33 @@ if (require.main === module) {
  	test([ 1, 0, 1, 0, 1, 0, 0,-1, 0,-1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1],
 	     [ 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], 8);
 */
+
+	const fs = require('fs');
+	for (let i = 2; i < process.argv.length; ++i) {
+		let name = process.argv[i];
+		if (name.endsWith("/")) name = name.substr(0,name.length-1);
+		const stats = fs.lstatSync(name);
+		let files;
+		if (stats.isDirectory()) {
+			files = [];
+			fs.readdirSync(name).forEach(function(filename){
+				files.push(name + "/" + filename);
+			});
+		} else {
+			files = [name];
+		}
+		files.forEach(function(filename){
+			console.log(filename + " ...");
+			let data = null;
+			try {
+				data = JSON.parse(fs.readFileSync(filename));
+			} catch (e) {
+				console.log(e);
+				data = null;
+			}
+			if (data !== null) {
+				test(data.offsets, data.firsts, data.orders, data.transferMax);
+			}
+		});
+	}
 }
