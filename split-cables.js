@@ -20,6 +20,25 @@
 //  sum(abs(cableOffsets)) is minimized
 
 function split_cables(offsets) {
+	//if offsets doesn't have any cables, just return it:
+	let hasCables = false;
+	for (let i = 0; i + 1 < offsets.length; ++i) {
+		if (i + offsets[i] > i+1 + offsets[i+1]) {
+			hasCables = true;
+			break;
+		}
+	}
+	if (!hasCables) {
+		let cableOffsets = [];
+		for (let i = 0; i < offsets.length; ++i) {
+			cableOffsets.push(0);
+		}
+		return {
+			flatOffsets:offsets.slice(),
+			cableOffsets:cableOffsets
+		};
+	}
+
 	//"fancy" attempt: dynamic programming solution.
 	// state:
 	//   previous stitch index

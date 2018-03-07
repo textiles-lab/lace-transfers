@@ -24,6 +24,7 @@
 const split_cables = require('./split-cables.js').split_cables;
 const limit_offsets = require('./limit-offsets.js').limit_offsets;
 const flat_transfers = require('./flat-transfers.js').flat_transfers;
+const lace_transfers = require('./lace-transfers.js').lace_transfers;
 const cable_transfers = require('./cable-transfers.js').cable_transfers;
 
 function general_transfers(offsets, firsts, orders, limit, outXfer) {
@@ -175,8 +176,17 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 		}
 
 		setMapped(sl.shortOffsets, firsts, orders, atOffsets);
-	
-		flat_transfers(mappedOffsets, mappedFirsts, mappedXfer);
+
+		let useLace = mappedOffsets.every(function(o){ return Math.abs(o) <= 1; });
+
+		if (useLace) {
+			lace_transfers(mappedOffsets, mappedFirsts,
+				function(i) { mappedXfer('f', i, 'b', i); },
+				function(i, ofs) { mappedXfer('b', i, 'f', i + ofs); }
+				);
+		} else {
+			flat_transfers(mappedOffsets, mappedFirsts, mappedXfer);
+		}
 
 
 		//longOffsets is all that remains:
@@ -290,7 +300,7 @@ if (require.main === module) {
 
 		function xfer(fromBed, fromIndex, toBed, toIndex) {
 			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
-			console.log(cmd);
+			//console.log(cmd);
 			log.push(cmd);
 
 			console.assert((fromBed === 'f' && toBed === 'b') || (fromBed === 'b' && toBed === 'f'), "must xfer f <=> b");
@@ -336,7 +346,7 @@ if (require.main === module) {
 
 			while (from.length) to.push(from.pop());
 
-			dumpNeedles(); //DEBUG
+			//dumpNeedles(); //DEBUG
 		}
 
 		let infoI = "";
@@ -418,4 +428,33 @@ if (require.main === module) {
  	test([ 1, 0, 1, 0, 1, 0, 0,-1, 0,-1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1],
 	     [ 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], 8);
 */
+
+	const fs = require('fs');
+	for (let i = 2; i < process.argv.length; ++i) {
+		let name = process.argv[i];
+		if (name.endsWith("/")) name = name.substr(0,name.length-1);
+		const stats = fs.lstatSync(name);
+		let files;
+		if (stats.isDirectory()) {
+			files = [];
+			fs.readdirSync(name).forEach(function(filename){
+				files.push(name + "/" + filename);
+			});
+		} else {
+			files = [name];
+		}
+		files.forEach(function(filename){
+			console.log(filename + " ...");
+			let data = null;
+			try {
+				data = JSON.parse(fs.readFileSync(filename));
+			} catch (e) {
+				console.log(e);
+				data = null;
+			}
+			if (data !== null) {
+				test(data.offsets, data.firsts, data.orders, data.transferMax);
+			}
+		});
+	}
 }
