@@ -42,6 +42,8 @@ function cable_transfers(offsets, orders, xfer) {
 		//assume that i is at the L/M boundary:
 		let L = offsets[l0];
 
+		if (L === 0) continue;
+
 		let found = false;
 		for (let l = 1; l0+l <= offsets.length; ++l) {
 			if (offsets[l0+l-1] !== L) break;
