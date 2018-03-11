@@ -67,8 +67,8 @@ function cable_transfers(offsets, orders, xfer) {
 					let om = (m > 0 ? orders[m0] : -Infinity);
 					let or = orders[r0];
 
-					//console.log( "[" + l0 + ", " + (l0+l) + ")[" + m0 + ", " + (m0+m) + ")[" + r0 + ", " + (r0+r) + ")" );
-					//console.log(ol,om,or);
+					//console.log( "[" + l0 + ", " + (l0+l) + ")[" + m0 + ", " + (m0+m) + ")[" + r0 + ", " + (r0+r) + ")" ); //DEBUG
+					//console.log(ol,om,or); //DEBUG
 
 					let blocks = [];
 

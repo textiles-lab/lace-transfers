@@ -117,7 +117,13 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 		for (let n = minNeedle; n <= maxNeedle; ++n) {
 			if (mappedOffsets[n-minNeedle] === null) {
 				console.assert(n > minNeedle, "minNeedle should never have undefined offset");
-				mappedOffsets[n-minNeedle] = mappedOffsets[n-1-minNeedle];
+				if (mappedOffsets[n-1-minNeedle] <= 0 && mappedOffsets[n+1-minNeedle] >= 0) {
+					mappedOffsets[n-minNeedle] = 0;
+				} else if (Math.abs(mappedOffsets[n-1-minNeedle]) < Math.abs(mappedOffsets[n+1-minNeedle])) {
+					mappedOffsets[n-minNeedle] = mappedOffsets[n-1-minNeedle];
+				} else {
+					mappedOffsets[n-minNeedle] = mappedOffsets[n+1-minNeedle];
+				}
 				ignoreNeedles['f' + n] = true;
 			} else {
 				ignoreNeedles['f' + n] = false;
@@ -153,6 +159,7 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 
 	//split into flat + cables (and hold cables for later).
 	let fc = split_cables(offsets);
+
 
 	//resolve all the flat offsets:
 	let remaining = fc.flatOffsets;
@@ -199,7 +206,11 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 		atOffsets.push(fc.flatOffsets[i]);
 	}
 	setMapped(fc.cableOffsets, firsts, orders, atOffsets);
-	//console.log(mappedOrders); //DEBUG
+
+	//console.log(offsetsToString(fc.flatOffsets)); //DEBUG
+	//console.log(offsetsToString(fc.cableOffsets)); //DEBUG
+	//console.log(offsetsToString(atOffsets)); //DEBUG
+	//console.log(offsetsToString(mappedOffsets)); //DEBUG
 
 	cable_transfers(mappedOffsets, mappedOrders, mappedXfer);
 
@@ -391,11 +402,18 @@ if (require.main === module) {
 		return log;
 	}
 
+	test([ 0, 0,+2,+2,-2,-2,+1, 0, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		 [ 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		 2);
+	return;
 
 	test([+1,+1,+2,+2,+3,+3,+2,+1],
 	     [ 0, 0, 0, 0, 0, 1, 0, 0],
 		 [ 0, 0, 0, 0, 0, 0, 0, 0],
 		 2);
+
+
 
 	test([ 0, 0,+1, 0, 0,+1,-1, 0, 0],
 	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0],

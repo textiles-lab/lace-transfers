@@ -17,6 +17,8 @@
 //  flatOffsets doesn't contain any incorrect decreases:
 //    i + flatOffsets[i] == i+1 + flatOffsets[i+1]
 //      Only when i + offsets[i] == i+1 + offsets[i+1]
+//  abs(flatOffsets[i]) <= abs(offsets[i])
+//  abs(cableOffsets[i]) <= abs(offsets[i])
 //  sum(abs(cableOffsets)) is minimized
 
 function split_cables(offsets) {
@@ -66,18 +68,20 @@ function split_cables(offsets) {
 			let best = 0xffffffff;
 			let from = INVALID_OFFSET;
 			let flat = offsets[i] - ofs;
-			for (let prevOfs = MIN_OFFSET; prevOfs <= MAX_OFFSET; ++prevOfs) {
-				let prevFlat = offsets[i-1] - prevOfs;
-				if (prevFlat > 1+flat) continue; //can't have cables in flat
-				if (prevFlat === 1+flat) { //decrease in flat
-					//shouldn't decrease in flat if no decrease in offsets:
-					if (offsets[i-1] !== 1+offsets[i]) continue;
-				}
-				let cost = costs[(i-1)*OFFSET_COUNT + (prevOfs-MIN_OFFSET)];
-				cost += Math.abs(ofs);
-				if (cost < best) {
-					best = cost;
-					from = prevOfs;
+			if (Math.abs(ofs) <= Math.abs(offsets[i]) && Math.abs(flat) <= Math.abs(offsets[i])) {
+				for (let prevOfs = MIN_OFFSET; prevOfs <= MAX_OFFSET; ++prevOfs) {
+					let prevFlat = offsets[i-1] - prevOfs;
+					if (prevFlat > 1+flat) continue; //can't have cables in flat
+					if (prevFlat === 1+flat) { //decrease in flat
+						//shouldn't decrease in flat if no decrease in offsets:
+						if (offsets[i-1] !== 1+offsets[i]) continue;
+					}
+					let cost = costs[(i-1)*OFFSET_COUNT + (prevOfs-MIN_OFFSET)];
+					cost += Math.abs(ofs);
+					if (cost < best) {
+						best = cost;
+						from = prevOfs;
+					}
 				}
 			}
 			costs[i*OFFSET_COUNT + (ofs-MIN_OFFSET)] = best;
