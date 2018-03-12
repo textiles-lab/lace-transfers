@@ -91,8 +91,10 @@ function flat_transfers(offsets, firsts, xfer) {
 		let maxReturn = 2;
 		let returnPasses = [[], []]; //returnPasses[0] is for offset minReturn + i
 
+		//prevSlider is the largest slider used so far,
+		// prevNeedle is the largest destination needle used so far.
 		let prevSlider = -Infinity;
-		//TODO: set clamp when slider use conflicts, in order to save offsets for a second pass.
+		let prevNeedle = -Infinity;
 
 		for (let i = 0; i < offsets.length; ++i) {
 			if (i + 2 < offsets.length && at[i]+offsets[i] === at[i+1]+offsets[i+1] && at[i]+offsets[i] === at[i+2]+offsets[i+2]) {
@@ -105,6 +107,9 @@ function flat_transfers(offsets, firsts, xfer) {
 					regularPasses[0-minOffset].push(i);
 					regularPasses[0-minOffset].push(i+1);
 					regularPasses[0-minOffset].push(i+2);
+
+					console.assert(prevNeedle < at[i]);
+					prevNeedle = at[i];
 				} else {
 					//not already done:
 					console.assert(at[i] + 1 === at[i+1], "stitches are left-to-right neighbors");
@@ -112,33 +117,64 @@ function flat_transfers(offsets, firsts, xfer) {
 					console.assert(offsets[i] === 1+offsets[i+1], "offsets are decreasing by one");
 					console.assert(offsets[i+1] === 1+offsets[i+2], "offsets are decreasing by one");
 
-					if ( !(Boolean(firsts[i]) || Boolean(firsts[i+1]) || Boolean(firsts[i+2])) //no first preference
-					 || Boolean(firsts[i]) ) { // preference matches order anyway
-						regularPasses[offsets[i]-minOffset].push(i);
-						regularPasses[offsets[i+1]-minOffset].push(i+1);
-						regularPasses[offsets[i+2]-minOffset].push(i+2);
-					} else if (Boolean(firsts[i+1])) { //center to arrive first, need to put i on slider
-						//note: slider can't be in use, but just be sure:
-						console.assert(prevSlider < offsets[i+1]+at[i]);
-						prevSlider = offsets[i+1]+at[i]; //mark slider as needed
+					if (at[i]+offsets[i] <= prevNeedle) {
+						//not enough space, so shift but do not resolve:
+						let ofs = at[i] - (prevNeedle+1);
+						console.assert(ofs > offsets[i]);
+						console.assert(at[i]+ofs > prevNeedle);
 
-						sliderPasses[offsets[i+1]-minOffset].push(i);
-						returnPasses[1 - minReturn].push(i);
-						regularPasses[offsets[i+1]-minOffset].push(i+1);
-						regularPasses[offsets[i+2]-minOffset].push(i+2);
+						regularPasses[ofs-minOffset].push(i);
+						regularPasses[ofs-minOffset].push(i+1);
+						regularPasses[ofs-minOffset].push(i+2);
 
-					} else { //right to arrive first, need to put i, i+1 on sliders
-						console.assert(Boolean(firsts[i+2]));
-						
-						//note: slider MAY be in use! if so, need to do some special-casing here!
-						console.assert(prevSlider < offsets[i+2]+at[i], "TODO: clamp/multipass when slider in use");
-						prevSlider = offsets[i+2]+at[i]; //mark slider as needed
+						prevNeedle = at[i+2]+ofs;
+					} else {
+						//have enough space:
+						console.assert(prevNeedle < at[i]+offsets[i]);
 
-						sliderPasses[offsets[i+2]-minOffset].push(i);
-						returnPasses[2 - minReturn].push(i);
-						sliderPasses[offsets[i+2]-minOffset].push(i+1);
-						returnPasses[1 - minReturn].push(i+1);
-						regularPasses[offsets[i+2]-minOffset].push(i+2);
+						if ( !(Boolean(firsts[i]) || Boolean(firsts[i+1]) || Boolean(firsts[i+2])) //no first preference
+						 || Boolean(firsts[i]) ) { // preference matches order anyway
+
+							regularPasses[offsets[i]-minOffset].push(i);
+							regularPasses[offsets[i+1]-minOffset].push(i+1);
+							regularPasses[offsets[i+2]-minOffset].push(i+2);
+
+							prevNeedle = at[i+2]+offsets[i+2];
+						} else if (Boolean(firsts[i+1])) { //center to arrive first, need to put i on slider
+							//note: slider can't be in use, but just be sure:
+							console.assert(prevSlider < offsets[i+1]+at[i]);
+							prevSlider = offsets[i+1]+at[i]; //mark slider as needed
+
+							sliderPasses[offsets[i+1]-minOffset].push(i);
+							returnPasses[1 - minReturn].push(i);
+							regularPasses[offsets[i+1]-minOffset].push(i+1);
+							regularPasses[offsets[i+2]-minOffset].push(i+2);
+
+							prevNeedle = at[i+2]+offsets[i+2];
+						} else { //right to arrive first, need to put i, i+1 on sliders
+							console.assert(Boolean(firsts[i+2]));
+
+							//note: slider MAY be in use!
+							if (prevSlider >= offsets[i+2]+at[i]) {
+								//slider in use! do this decrease in a later pass:
+								regularPasses[offsets[i]-minOffset].push(i);
+								regularPasses[offsets[i]-minOffset].push(i+1);
+								regularPasses[offsets[i]-minOffset].push(i+2);
+
+								prevNeedle = at[i+2]+offsets[i];
+							} else {
+								console.assert(prevSlider < offsets[i+2]+at[i], "TODO: clamp/multipass when slider in use");
+								prevSlider = offsets[i+2]+at[i+1]; //mark sliders as needed
+
+								sliderPasses[offsets[i+2]-minOffset].push(i);
+								returnPasses[2 - minReturn].push(i);
+								sliderPasses[offsets[i+2]-minOffset].push(i+1);
+								returnPasses[1 - minReturn].push(i+1);
+								regularPasses[offsets[i+2]-minOffset].push(i+2);
+
+								prevNeedle = at[i+2]+offsets[i+2];
+							}
+						}
 					}
 				}
 				i += 2; //move to end of 3-1 decrease
@@ -150,31 +186,64 @@ function flat_transfers(offsets, firsts, xfer) {
 					console.assert(offsets[i] === 0 && offsets[i+1] === 0, "stacked stitches should be at zero.");
 					regularPasses[0-minOffset].push(i);
 					regularPasses[0-minOffset].push(i+1);
+
+					console.assert(prevNeedle < at[i]+offsets[i]);
+					prevNeedle = at[i+1]+offsets[i+1];
 				} else {
 					//not already done:
 					console.assert(at[i] + 1 === at[i+1], "stitches are left-to-right neighbors");
 					console.assert(offsets[i] === 1+offsets[i+1], "offsets are decreasing by one");
 
-					if ( Boolean(firsts[i]) === Boolean(firsts[i+1]) //no first preference
-					 || Boolean(firsts[i]) ) { // preference matches order anyway
-						regularPasses[offsets[i]-minOffset].push(i);
-						regularPasses[offsets[i+1]-minOffset].push(i+1);
-					} else { //out of order, need to put i on slider
-						console.assert(Boolean(firsts[i+1]));
-						//note: slider can't be in use, but just be sure:
-						console.assert(prevSlider < offsets[i+1]+at[i]);
-						prevSlider = offsets[i+1]+at[i]; //mark slider as needed
+					if (prevNeedle >= at[i]+offsets[i]) {
+						//not enough space.
+						let ofs = at[i] - (prevNeedle+1);
+						console.assert(ofs > offsets[i]);
+						console.assert(at[i]+ofs > prevNeedle);
 
-						sliderPasses[offsets[i+1]-minOffset].push(i);
-						returnPasses[1 - minReturn].push(i);
-						regularPasses[offsets[i+1]-minOffset].push(i+1);
+						regularPasses[ofs-minOffset].push(i);
+						regularPasses[ofs-minOffset].push(i+1);
+
+						prevNeedle = at[i+1]+ofs;
+					} else {
+						//have enough space:
+
+						console.assert(prevNeedle < at[i]+offsets[i]);
+						if ( Boolean(firsts[i]) === Boolean(firsts[i+1]) //no first preference
+						 || Boolean(firsts[i]) ) { // preference matches order anyway
+							regularPasses[offsets[i]-minOffset].push(i);
+							regularPasses[offsets[i+1]-minOffset].push(i+1);
+						} else { //out of order, need to put i on slider
+							console.assert(Boolean(firsts[i+1]));
+							//note: slider can't be in use, but just be sure:
+							console.assert(prevSlider < offsets[i+1]+at[i]);
+							prevSlider = offsets[i+1]+at[i]; //mark slider as needed
+
+							sliderPasses[offsets[i+1]-minOffset].push(i);
+							returnPasses[1 - minReturn].push(i);
+							regularPasses[offsets[i+1]-minOffset].push(i+1);
+						}
+						prevNeedle = at[i+1]+offsets[i+1];
 					}
 				}
 				i += 1; //move to end of 2-1 decrease
 
 			} else {
-				//not a decrease, easy:
-				regularPasses[offsets[i]-minOffset].push(i);
+				//not a decrease:
+				if (prevNeedle >= at[i]+offsets[i]) {
+					//not enough space.
+					console.assert(offsets[i] !== 0, "shouldn't shove 'done' stitches")
+
+					let ofs = at[i] - (prevNeedle+1);
+					console.assert(ofs > offsets[i]);
+					console.assert(at[i]+ofs > prevNeedle);
+
+					regularPasses[ofs-minOffset].push(i);
+
+					prevNeedle = at[i]+ofs;
+				} else {
+					//have space
+					regularPasses[offsets[i]-minOffset].push(i);
+				}
 			}
 		}
 
@@ -252,6 +321,7 @@ function flat_transfers(offsets, firsts, xfer) {
 	} else if (maxOffset === 0) {
 		sliderySchoolbus('-', at, offsets, firsts, xfer);
 	} else {
+
 		//try '+' and '-' and pick the best:
 		let lastPass = "";
 		let passes = 0;
