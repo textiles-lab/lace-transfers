@@ -17,99 +17,70 @@
 //  flatOffsets doesn't contain any incorrect decreases:
 //    i + flatOffsets[i] == i+1 + flatOffsets[i+1]
 //      Only when i + offsets[i] == i+1 + offsets[i+1]
+//  sum(abs(cableOffsets)) is minimized
+//  these seem like a bad idea:
 //  abs(flatOffsets[i]) <= abs(offsets[i])
 //  abs(cableOffsets[i]) <= abs(offsets[i])
-//  sum(abs(cableOffsets)) is minimized
 
+//New, ad-hoc code looks for "out-of-order sections":
 function split_cables(offsets) {
-	//if offsets doesn't have any cables, just return it:
-	let hasCables = false;
+
+	//initialize to "all offsets are flat":
+	let cableOffsets = [];
+	for (let i = 0; i < offsets.length; ++i) {
+		cableOffsets.push(0);
+	}
+
 	for (let i = 0; i + 1 < offsets.length; ++i) {
-		if (i + offsets[i] > i+1 + offsets[i+1]) {
-			hasCables = true;
-			break;
-		}
-	}
-	if (!hasCables) {
-		let cableOffsets = [];
-		for (let i = 0; i < offsets.length; ++i) {
-			cableOffsets.push(0);
-		}
-		return {
-			flatOffsets:offsets.slice(),
-			cableOffsets:cableOffsets
-		};
-	}
+		if (i + offsets[i] <= i+1 + offsets[i+1]) continue; //no out-of-order-ness, no problem.
+		//Figure out the smallest "out-of-order" section containing i:
+		// want a section l [a ... b] r
+		// (1) dest[l] < min(dest[a], ..., dest[b]) <-- the next stitch left isn't "out of order"
+		// (2) dest[r] > max(dest[a], ..., dest[b]) <-- the next stitch right isn't "out of order"
+		let a = i;
+		let b = i+1;
+		let min = Math.min(a + offsets[a], b + offsets[b]);
+		let max = Math.max(a + offsets[a], b + offsets[b]);
 
-	//"fancy" attempt: dynamic programming solution.
-	// state:
-	//   previous stitch index
-	//   previous flatOffset
-	// cost:
-	//   sum(abs(cableOffset))
-
-	//will assign cable offsets from this range:
-	const MIN_OFFSET = -8;
-	const MAX_OFFSET = 8;
-	const OFFSET_COUNT = MAX_OFFSET - MIN_OFFSET + 1;
-
-	let costs = new Uint32Array(offsets.length * OFFSET_COUNT);
-	let froms = new Int8Array(offsets.length * OFFSET_COUNT);
-	const INVALID_OFFSET = 127;
-
-	//First step:
-	for (let ofs = MIN_OFFSET; ofs <= MAX_OFFSET; ++ofs) {
-		costs[0 * OFFSET_COUNT + (ofs-MIN_OFFSET)] = Math.abs(ofs);
-		froms[0 * OFFSET_COUNT + (ofs-MIN_OFFSET)] = INVALID_OFFSET;
-	}
-
-	for (let i = 1; i < offsets.length; ++i) {
-		for (let ofs = MIN_OFFSET; ofs <= MAX_OFFSET; ++ofs) {
-			let best = 0xffffffff;
-			let from = INVALID_OFFSET;
-			let flat = offsets[i] - ofs;
-			if (Math.abs(ofs) <= Math.abs(offsets[i]) && Math.abs(flat) <= Math.abs(offsets[i])) {
-				for (let prevOfs = MIN_OFFSET; prevOfs <= MAX_OFFSET; ++prevOfs) {
-					let prevFlat = offsets[i-1] - prevOfs;
-					if (prevFlat > 1+flat) continue; //can't have cables in flat
-					if (prevFlat === 1+flat) { //decrease in flat
-						//shouldn't decrease in flat if no decrease in offsets:
-						if (offsets[i-1] !== 1+offsets[i]) continue;
-					}
-					let cost = costs[(i-1)*OFFSET_COUNT + (prevOfs-MIN_OFFSET)];
-					cost += Math.abs(ofs);
-					if (cost < best) {
-						best = cost;
-						from = prevOfs;
-					}
-				}
+		//grow the range until it can grow no further:
+		while (true) {
+			if (a > 0 && a-1 + offsets[a-1] >= min) {
+				--a;
+				max = Math.max(max, a + offsets[a]);
+			} else if (b + 1 < offsets.length && b+1 + offsets[b+1] <= max) {
+				++b;
+				min = Math.min(min, b + offsets[b]);
+			} else {
+				break;
 			}
-			costs[i*OFFSET_COUNT + (ofs-MIN_OFFSET)] = best;
-			froms[i*OFFSET_COUNT + (ofs-MIN_OFFSET)] = from;
 		}
-	}
 
-	//find best last step:
-	let best = 0xffffffff;
-	let last = INVALID_OFFSET;
-	for (let ofs = MIN_OFFSET; ofs <= MAX_OFFSET; ++ofs) {
-		let cost = costs[(offsets.length-1)*OFFSET_COUNT + (ofs-MIN_OFFSET)];
-		if (cost < best) {
-			best = cost;
-			last = ofs;
+		//console.log(a,b); //DEBUG
+
+		//So, the question becomes: what offset to place [a,b] at?
+		//anything that keeps dest in [min,max] will work.
+
+		//let's minimize sum-square offset:
+		let avg = 0;
+		for (let j = a; j <= b; ++j) {
+			avg += offsets[j];
 		}
+		avg /= (b-a+1);
+		avg = Math.round(avg);
+
+		avg = Math.max(avg, min-a); //must keep even the leftmost stitch within [min,max]
+		avg = Math.min(avg, max-b); //must keep even the rightmost stitch within [min,max]
+
+		for (let j = a; j <= b; ++j) {
+			cableOffsets[j] = offsets[j] - avg;
+		}
+
+		i = b; //no need to go looking for out-of-order ranges within the range itself
+
 	}
 
-	if (last === INVALID_OFFSET) throw "Failed to find a offset split solution.";
+	//console.log(cableOffsets.join(" ")); //DEBUG
 
-	let cableOffsets = [last];
-	for (let i = offsets.length-1; i > 0; --i) {
-		let from = froms[i*OFFSET_COUNT + (cableOffsets[0]-MIN_OFFSET)];
-		console.assert(from !== INVALID_OFFSET, "valid solutions must have valid froms");
-		cableOffsets.unshift(from);
-	}
-
-	console.assert(cableOffsets.length === offsets.length);
 	let flatOffsets = [];
 	for (let i = 0; i < offsets.length; ++i) {
 		flatOffsets.push(offsets[i] - cableOffsets[i]);
