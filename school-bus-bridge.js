@@ -1,29 +1,129 @@
-function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xferToBack, xferToFront) {
-	//Check inputs:
-	if (offsets.length != firsts.length) {
-		throw "Offsets and firsts should be the same length";
-	}
+function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 
-	if (minRacking >= maxRacking) {
-		throw "min racking must be strictly less than max racking" ;
-	}
+/*	var tempGoal = fill_all_valleys(offsets, firsts);
+	print_goal(tempGoal, firsts);
 
-	var validMin = minRacking;
-	for (let i = 0; i < offsets.length; ++i) {
-		if (offsets[i] < validMin) {
-			throw "offset falls below valid min value" ;
-		}
-		validMin = Math.max(offsets[i]-1, minRacking);
-		if (offsets[i] > maxRacking) {
-			throw "offset is above maxRacking";
-		}
-	}
-
-	var tempGoal = fill_all_valleys(offsets, firsts);
-
-	
+*/	
 	var currentOffset = 0;
-	currentOffset = minRacking; //TODO: check whether starting with maxRacking would be better 
+	let needle_pos = [];
+	for (let i = 0; i < offsets.length; ++i) {
+		needle_pos[i] = i;
+	}
+
+
+	for (let i = 0; i < offsets.length; ++i) {
+		xfer('f', i, 'b', i-currentOffset);
+	}
+/*	currentOffset = minRacking; //TODO: check whether starting with maxRacking would be better 
+	while (currentOffset < maxRacking) {
+		++currentOffset
+		for (let i = 0; i < offsets.length; ++i) {
+			if (tempGoal[i]==currentOffset) {
+				xfer('b', i, 'f', i+currentOffset);
+				needle_pos[i] = i+currentOffset;
+			}
+		}
+	}*/
+
+	function min_to_max_pass(goal, startOffset) {
+		//let tempGoal = fill_all_valleys(goal, firsts);
+		print_goal(goal, firsts);
+		while (currentOffset < maxRacking) {
+			++currentOffset;
+			for (let i = 0; i < goal.length; ++i) {
+				if (goal[i] == currentOffset-startOffset) {
+					xfer('b', needle_pos[i], 'f', needle_pos[i]+currentOffset);
+					needle_pos[i] = needle_pos[i]+currentOffset;
+				}
+			}
+		}
+
+		//return Array.from(goal, (x, i) => x - tempGoal[i]);
+	}
+
+	function max_to_min_pass(goal, startOffset) {
+		//let tempGoal = flatten_all_hills(goal, firsts);
+		//console.log("flattened hill goal is: ");
+		print_goal(goal, firsts);
+		while (currentOffset >= minRacking) {
+			console.log(currentOffset - startOffset);
+			currentOffset--;
+			for (let i = 0; i < goal.length; ++i) {
+				//started at max racking, so adjust offsets for that
+				if (goal[i] == currentOffset - startOffset) {
+					//transfer
+					xfer('b', needle_pos[i], 'f', needle_pos[i]+currentOffset);
+					needle_pos[i] = needle_pos[i] + currentOffset;
+				}
+			}
+		}
+
+		//return Array.from(goal, (x,i) => x - tempGoal[i]);
+	}
+
+	var increasing = true;
+	currentOffset = increasing ? (minRacking-1) : (maxRacking+1); //for the very first pass, everything has to go to the back bed
+	var tempGoal = increasing ? fill_all_valleys(offsets, firsts) : flatten_all_hills(offsets, firsts);
+	increasing ? min_to_max_pass(tempGoal, 0, minRacking) : max_to_min_pass(tempGoal, 0, maxRacking);
+	var middleGoal = Array.from(offsets, (x,i) => x - tempGoal[i]);
+	print_goal(middleGoal, firsts);
+	while (!is_done(middleGoal)) {
+		increasing = !increasing;
+		tempGoal = increasing ? fill_all_valleys(middleGoal, firsts) : flatten_all_hills(middleGoal, firsts);
+		for (let i=0; i < offsets.length; ++i) {
+			if (tempGoal[i] != 0) {
+				xfer('f', needle_pos[i], 'b', needle_pos[i]-currentOffset);
+				needle_pos[i] = needle_pos[i] - currentOffset;
+			}
+		}
+		//increasing ? currentOffset++ : currentOffset--;
+		increasing ? min_to_max_pass(tempGoal, minRacking) : max_to_min_pass(tempGoal, maxRacking);
+		middleGoal = Array.from(middleGoal, (x,i) => x - tempGoal[i]);
+		print_goal(middleGoal, firsts);
+	}
+
+
+
+//	var newGoal = Array.from(offsets, (x, i) => x - tempGoal[i]);
+
+/*	while (true) {	
+		print_goal(newGoal, firsts);
+
+		if (is_done(newGoal)) {
+			return;
+		}
+
+		tempGoal = flatten_all_hills(newGoal, firsts);
+		
+		for (let i=0; i < offsets.length; ++i) {
+			if (tempGoal[i] != 0) {
+				xfer('f', needle_pos[i], 'b', needle_pos[i]-currentOffset);
+				needle_pos[i] = needle_pos[i] - currentOffset;
+			}
+		}
+
+		while (currentOffset > minRacking) {
+			currentOffset--;
+			for (let i = 0; i < offsets.length; ++i) {
+				//started at max racking, so adjust offsets for that
+				if (tempGoal[i] == currentOffset - maxRacking) {
+					//transfer
+					xfer('b', needle_pos[i], 'f', needle_pos[i]+currentOffset);
+					needle_pos[i] = needle_pos[i] + currentOffset;
+				}
+			}
+		}
+
+		newGoal = Array.from(newGoal, (x, i) => x - tempGoal[i]);
+		
+
+		if (is_done(newGoal)) {
+			return;
+		}
+
+
+	} */
+
 }
 
 function fill_all_valleys(offsets, firsts) {
@@ -31,6 +131,7 @@ function fill_all_valleys(offsets, firsts) {
 	var index = 0;
 
 	while (index < offsets.length) {
+		filledOffsets[index] = offsets[index];
 		if (firsts[index]) {
 			//found a front stitch, do fill checks
 			let floor = offsets[index];
@@ -41,8 +142,7 @@ function fill_all_valleys(offsets, firsts) {
 			}
 		}
 		else {
-			//no need to fill, just copy
-			filledOffsets[index] = offsets[index];
+			//no need to fill, just continue
 			++index;
 		}
 	}
@@ -51,15 +151,45 @@ function fill_all_valleys(offsets, firsts) {
 }
 
 function flatten_all_hills(offsets, firsts) {
-	flattenedOffsets = [];
+	var flattenedOffsets = [];
+	var index = offsets.length - 1;
+
+	while (index >= 0) {
+		flattenedOffsets[index] = offsets[index];
+		if (firsts[index]) {
+			let ceiling = offsets[index];
+			--index;
+			while (index >=0 && offsets[index] > ceiling) {
+				flattenedOffsets[index] = ceiling;
+				--index;
+			}
+		}
+		else {
+			--index;
+		}
+	}
 
 	return flattenedOffsets;
 }
 
+function process_stacks_decreasing(offsets, firsts) {
+	//
+	var processed_offsets = []
+	var index = offsets.length -1;
 
-//-------------------------------------------------
-//testing code, ripped from lace-transfers:
-//
+	//while (index >=0) {
+
+}
+
+function is_done(offsets) {
+	for (let i = 0; i < offsets.length; ++i) {
+		if (offsets[i]!=0) {
+			return false;
+		}
+	}
+	return true;
+}
+
 function print_goal(offsets, firsts) {
 	let infoI = "";
 	let infoO = "";
@@ -86,80 +216,212 @@ function print_goal(offsets, firsts) {
 	console.log("offset:" + infoO);
 	console.log(" first:" + infoF);
 }
+//-------------------------------------------------
+//testing code:
+
+function offsetsToString(offsets) {
+	let info = "";
+	for (let i = 0; i < offsets.length; ++i) {
+		if (i !== 0) info += " ";
+		if (offsets[i] < 0) info += offsets[i];
+		else if (offsets[i] > 0) info += "+" + offsets[i];
+		else info += " 0";
+	}
+	return info;
+}
 
 if (require.main === module) {
-	console.log("Doing some test lace transfers.");
-	function test(offsets, firsts) {
-		let frontStacks = [];
-		let backStacks = [];
-		let moved = [];
+	console.log("Doing some test general transfers.");
+	function test(offsets, firsts, limit) {
+		let needles = {};
 		for (let i = 0; i < offsets.length; ++i) {
-			frontStacks.push([i]);
-			backStacks.push([]);
-			moved.push(false);
+			needles['f' + i] = [i];
+		}
+
+		function dumpNeedles() {
+			let minNeedle = 0;
+			let maxNeedle = offsets.length-1;
+			for (let n in needles) {
+				let m = n.match(/^[fb](-?\d+)$/);
+				console.assert(m);
+				let val = parseInt(m[1]);
+				minNeedle = Math.min(minNeedle, val);
+				maxNeedle = Math.max(maxNeedle, val);
+			}
+
+			let layers = [];
+			for (let n = minNeedle; n <= maxNeedle; ++n) {
+				if (('b' + n) in needles) {
+					needles['b' + n].forEach(function(i, d){
+						while (d >= layers.length) layers.push("");
+						while (layers[d].length < n * 3) layers[d] += "   ";
+						layers[d] += " ";
+						if (i < 10) layers[d] += " " + i;
+						else layers[d] += i;
+					});
+				}
+			}
+			for (let l = layers.length - 1; l >= 0; --l) {
+				console.log(" back:" + layers[l]);
+			}
+			layers = [];
+			for (let n = minNeedle; n <= maxNeedle; ++n) {
+				if (('f' + n) in needles) {
+					needles['f' + n].forEach(function(i, d){
+						while (d >= layers.length) layers.push("");
+						while (layers[d].length < n * 3) layers[d] += "   ";
+						layers[d] += " ";
+						if (i < 10) layers[d] += " " + i;
+						else layers[d] += i;
+					});
+				}
+			}
+			for (let l = layers.length - 1; l >= 0; --l) {
+				console.log("front:" + layers[l]);
+			}
+
+			let infoI = "";
+			for (let n = minNeedle; n <= maxNeedle; ++n) {
+				if      (n < -10) infoI += n.toString();
+				else if (n <   0) infoI += " " + n.toString();
+				else if (n === 0) infoI += "  0";
+				else if (n <  10) infoI += "  " + n.toString();
+				else              infoI += " " + n.toString();
+			}
+			console.log("index:" + infoI);
 		}
 		let log = [];
-		function xferToBack(i, ofs) {
-			var stack = frontStacks[i];
-			console.assert(stack.length === 1 && stack[0] === i, "xferToBack should be called on a lone loop on the front");
-			console.assert(backStacks[i].length === 0, "xferToBack should have empty dest");
-			backStacks[i-ofs] = stack;
-			frontStacks[i] = [];
-			moved[i] = true;
 
-			let cmd = "xfer " + 'f' + i + " " + 'b' + (i-ofs) + " ; ofs: " + ofs;
+		function xfer(fromBed, fromIndex, toBed, toIndex) {
+			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
+			//console.log(cmd);
 			log.push(cmd);
-			console.log(cmd);
-		}
-		function xferToFront(i, ofs) {
-			//console.assert(offsets[i] === ofs, "lace_transfers must pass offsets[i]");
 
-			var stack = backStacks[i];
-			console.assert(stack.length === 1 && stack[0] === i, "xferToFront should be called on a lone loop on the back");
-			console.assert(!(firsts[i] && frontStacks[i+ofs].length > 0), "xferToFront shouldn't put first stitch anywhere but first");
+			console.assert((fromBed === 'f' && toBed === 'b') || (fromBed === 'b' && toBed === 'f'), "must xfer f <=> b");
 
-			backStacks[i] = [];
-			frontStacks[i+ofs].push(i);
+			//check for valid racking:
+			let at = [];
+			for (let i = 0; i < offsets.length; ++i) {
+				at.push(null);
+			}
+			for (var n in needles) {
+				let m = n.match(/^([fb])(-?\d+)$/);
+				console.assert(m);
+				needles[n].forEach(function(s){
+					console.assert(at[s] === null, "each stitch can only be in one place");
+					at[s] = {bed:m[1], needle:parseInt(m[2])};
+				});
+			}
 
-			let cmd = "xfer " + 'b' + i + " " + 'f' + (i+ofs) + " ; ofs: " + ofs;
-			log.push(cmd);
-			console.log(cmd);
+			let minRacking = -Infinity;
+			let maxRacking = Infinity;
+			for (let i = 1; i < offsets.length; ++i) {
+				if (at[i-1].bed === at[i].bed) continue;
+				let slack = Math.max(1, Math.abs( i+offsets[i] - (i-1+offsets[i-1]) ));
+				let back  = (at[i].bed === 'b' ? at[i].needle : at[i-1].needle);
+				let front = (at[i].bed === 'b' ? at[i-1].needle : at[i].needle);
+
+				//-slack <= back + racking - front <= slack
+				minRacking = Math.max(minRacking, -slack - back + front);
+				maxRacking = Math.min(maxRacking,  slack - back + front);
+			}
+			console.assert(minRacking <= maxRacking, "there is a valid racking for this stitch configuration");
+			let racking = (fromBed === 'f' ? fromIndex - toIndex : toIndex - fromIndex);
+			console.assert(minRacking <= racking && racking <= maxRacking, "required racking " + racking + " is outside [" + minRacking + ", " + maxRacking + "] valid range. (" + cmd + ")");
+
+
+
+			var from = needles[fromBed + fromIndex];
+			if (!((toBed + toIndex) in needles)) needles[toBed + toIndex] = [];
+			var to = needles[toBed + toIndex];
+
+			console.assert(from.length !== 0, "no reason to xfer empty needle");
+			//console.assert(from.length === 1, "shouldn't ever xfer stack");
+
+			while (from.length) to.push(from.pop());
+
+			//dumpNeedles(); //DEBUG
 		}
 
 		print_goal(offsets, firsts);
 
-		//lace_transfers(offsets, firsts, xferToBack, xferToFront);
-		multi_pass_transfers(offsets, firsts, -8, 8, xferToBack, xferToFront);
-		
-		return;
+		let minRacking = -1*limit;
+		let maxRacking = limit;
+
+		multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer);
+
+		dumpNeedles();
+
 		for (let i = 0; i < offsets.length; ++i) {
-			console.assert(backStacks[i].length === 0, "back needles left empty");
-			console.assert(moved[i] || offsets[i] === 0, "moved needles that needed it");
+			var n = needles['f' + (i + offsets[i])];
+			console.assert(n.indexOf(i) !== -1, "needle got to destination");
+			if (firsts[i]) {
+				console.assert(n.indexOf(i) === 0, "first got to destination first");
+			}
 		}
 
-		let layers = [];
-		for (let n = 0; n < offsets.length; ++n) {
-			frontStacks[n].forEach(function(i, d){
-				while (d >= layers.length) layers.push("");
-				while (layers[d].length < n * 3) layers[d] += "   ";
-				layers[d] += " ";
-				if (i < 10) layers[d] += " " + i;
-				else layers[d] += i;
-			});
-		}
-		for (let l = layers.length - 1; l >= 0; --l) {
-			console.log("stitches:" + layers[l]);
-		}
-		console.log("   index:" + infoI);
 		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
 
+		return log;
 	}
 
 	test([+1,+1,+2,+2,+3,+3,+2,+1],
-	     [ 0, 0, 0, 0, 0, 1, 0, 0], 2);
+	     [ 0, 0, 0, 0, 0, 1, 0, 0], 4);
 
-	/*test([ 0, 0,+1, 0, 0,+1,-1, 0, 0],
-	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0], 2);
-	     */
+	const fs = require('fs');
+	for (let i = 2; i < process.argv.length; ++i) {
+		let name = process.argv[i];
+		if (name.endsWith("/")) name = name.substr(0,name.length-1);
+		const stats = fs.lstatSync(name);
+		let files;
+		if (stats.isDirectory()) {
+			files = [];
+			fs.readdirSync(name).forEach(function(filename){
+				files.push(name + "/" + filename);
+			});
+		} else {
+			files = [name];
+		}
+		files.forEach(function(filename){
+			console.log(filename + " ...");
+			let data = null;
+			try {
+				data = JSON.parse(fs.readFileSync(filename));
+			} catch (e) {
+				console.log(e);
+				data = null;
+			}
+			if (data !== null) {
+				//Check inputs:
+				let minRacking = -1*data.transferMax;
+				let maxRacking = data.transferMax;
+
+				if (data.offsets.length != data.firsts.length) {
+					console.log("Offsets and firsts should be the same length");
+					return;
+				}
+
+				if (minRacking >= maxRacking) {
+					console.log("min racking must be strictly less than max racking");
+					return;
+				}
+				
+				let validMin = minRacking;
+				for (let i = 0; i < data.offsets.length; ++i) {
+					if (data.offsets[i] < validMin) {
+						console.log("offset falls below valid min value" );
+						return;
+					}
+					validMin = Math.max(data.offsets[i]-1, minRacking);
+					if (data.offsets[i] > maxRacking) {
+						console.log("offset is above maxRacking" );
+						return;
+					}
+				}
+
+				test(data.offsets, data.firsts, data.transferMax);
+			}
+		});
+	}
 
 }
