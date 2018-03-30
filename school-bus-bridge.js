@@ -58,7 +58,6 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 			}
 		}
 
-		//return Array.from(goal, (x,i) => x - tempGoal[i]);
 	}
 
 	var increasing = true;
@@ -84,45 +83,6 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 
 
 
-//	var newGoal = Array.from(offsets, (x, i) => x - tempGoal[i]);
-
-/*	while (true) {	
-		print_goal(newGoal, firsts);
-
-		if (is_done(newGoal)) {
-			return;
-		}
-
-		tempGoal = flatten_all_hills(newGoal, firsts);
-		
-		for (let i=0; i < offsets.length; ++i) {
-			if (tempGoal[i] != 0) {
-				xfer('f', needle_pos[i], 'b', needle_pos[i]-currentOffset);
-				needle_pos[i] = needle_pos[i] - currentOffset;
-			}
-		}
-
-		while (currentOffset > minRacking) {
-			currentOffset--;
-			for (let i = 0; i < offsets.length; ++i) {
-				//started at max racking, so adjust offsets for that
-				if (tempGoal[i] == currentOffset - maxRacking) {
-					//transfer
-					xfer('b', needle_pos[i], 'f', needle_pos[i]+currentOffset);
-					needle_pos[i] = needle_pos[i] + currentOffset;
-				}
-			}
-		}
-
-		newGoal = Array.from(newGoal, (x, i) => x - tempGoal[i]);
-		
-
-		if (is_done(newGoal)) {
-			return;
-		}
-
-
-	} */
 
 }
 
@@ -150,13 +110,134 @@ function fill_all_valleys(offsets, firsts) {
 	return filledOffsets;
 }
 
+function make_right_leaning_decreases(offsets, firsts) {
+	var newOffsets = [];
+	var index = offsets.length - 1;
+	var maxHill = Infinity;
+
+	//set the initial stitch to make later loops easier to write
+	newOffsets[index] = offsets[index];
+	--index;
+
+	while (index >= 0) {
+		if (offsets[index] > maxHill) {
+			//all regions larger than maxHill must be flattened
+			newOffsets[index] = maxHill;
+		}
+		else if (offsets[index] < maxHill) {
+			//no need to flatten, reset and check for decrease region
+			maxHill = Infinity;
+			newOffsets[index] = offsets[index];
+
+			if (offsets[index] > offsets[index+1]) {
+				//in decreasing section
+				maxHill = offsets[index];
+				if (firsts[index]) {
+					//fill to make center into right leaning
+					let minFloor = offsets[index];
+					let start = index+1;
+					while (start < offsets.length && newOffsets[start] < minFloor) {
+						newOffsets[start] = minFloor;
+						++start;
+					}
+					//check to see if this was actually left leaning
+					if (offsets[index] >= offsets[index-1]) {
+						//if so, no need to flatten hills
+						maxHill = Infinity;
+					}
+				}
+			}
+
+		}
+		else {
+			newOffsets[index] = offsets[index];
+		}
+		--index;
+	}
+
+	return newOffsets;
+}
+
+function make_left_leaning_decreases(offsets, firsts) {
+	var newOffsets = []
+	var index = 0;
+	var minFloor = -Infinity;
+
+	//explicitly setting initial stitch
+	newOffsets[index] = offsets[index];
+	++index;
+
+	while (index < offsets.length) {
+		if (offsets[index] < minFloor) {
+			newOffsets[index] = minFloor;
+		}
+		else if (offsets[index] > minFloor) {
+			minFloor = -Infinity;
+			newOffsets[index] = offsets[index]
+			if (offsets[index] < offsets[index-1]) {
+				//in decreasing section
+				minFloor = offsets[index];
+				if (firsts[index]) {
+					//fill to make left leaning
+					let maxHill = offsets[index]
+					let start = index-1;
+					while (start => 0 && newOffsets[start] > maxHill) {
+						newOffsets[start] = maxHill;
+						--start;
+					}
+					//check to see if this was a right leaning
+					if (offsets[index+1] >= offsets[index]) {
+						minFloor = -Infinity;
+					}
+				}
+			}
+
+		}
+		else {
+			newOffsets[index] = offsets[index];
+		}
+		index++;
+	}
+
+	return newOffsets;
+}
+
 function flatten_all_hills(offsets, firsts) {
 	var flattenedOffsets = [];
 	var index = offsets.length - 1;
+	var maxHill = Infinity;
+	//just set the initial stitch to make later loops less annoying to write
+	flattenedOffsets[index] = offsets[index]
+	--index;
 
 	while (index >= 0) {
+		if (offsets[index] > maxHill) {
+			flattenedOffsets[index] = maxHill;
+			continue;
+		}
+		else {
+			maxHill = Infinity;
+		}
 		flattenedOffsets[index] = offsets[index];
-		if (firsts[index]) {
+		
+		while (offsets[index] > offsets[index+1]) { //in decreasing section
+			maxHill = offsets[index]
+			
+			--index;
+			flattenedOffsets[index] = offsets[index]
+			//if the not bottom-most stitch is starred, we need to fill a valley
+			if (firsts[index]) {
+				let floor = firsts[index];
+				let start = index+1;
+				while (start < offsets.length && flattendOffsets[start] < floor) {
+					flattenedOffset[start] = floor;
+					start++;
+				}
+			}
+
+
+		}
+/*		if (firsts[index]) {
 			let ceiling = offsets[index];
 			--index;
 			while (index >=0 && offsets[index] > ceiling) {
@@ -168,7 +249,8 @@ function flatten_all_hills(offsets, firsts) {
 			--index;
 		}
 	}
-
+*/
+	}
 	return flattenedOffsets;
 }
 
