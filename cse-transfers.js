@@ -31,8 +31,7 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 8) {
 	let slack_backward = new Array(n_stitches).fill(max_racking);
 	let current = new Array();
 	let visited = new Set();
-	// probably needs a min_needle, max_needle range as well
-	// and a check that tests i+offsets[i] >= min_needle && <= max_needle
+	
 	const accum_add = (accumulator, currentValue) => Math.abs(accumulator) + Math.abs(currentValue);
 	let target = new Array();	
 	for (let i = 0; i < n_stitches; i++){ 
@@ -90,6 +89,11 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 8) {
 	};
 
 	function generate_transfers(path, log=false){
+		// keeping track of multiple transfers, similar to driver
+		let needles = {};
+		for (let i = 0; i < n_stitches; ++i) {
+			needles['f' + i] = [i];
+		}
 		for(let i = 0; i < path.length; i++){
 			let e = path[i];
 			if(e){
@@ -99,8 +103,13 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 8) {
 					console.log('\txfer '+e.from_bed + e.from.toString()+' '+e.to_bed+e.to.toString());	
 				}
 				else{
-				
+					let from = needles[e.from_bed+e.from];
+					if(from.length == 0) continue; // empty needle
 					xfer(e.from_bed, e.from, e.to_bed, e.to);
+					if (!((e.to_bed + e.to) in needles)) needles[e.to_bed+ e.to] = [];
+					let to = needles[e.to_bed+e.to];
+					while(from.length){ to.push(from.pop());}
+					
 				}
 			}
 		}
@@ -561,8 +570,7 @@ if (require.main === module) {
 			var to = needles[toBed + toIndex];
 
 			if(from.length == 0)
-				console.warn("shouldn't xfer empty needles, do a redundancy check pass");
-				//console.assert(from.length !== 0, "no reason to xfer empty needle");
+				console.assert(from.length !== 0, "no reason to xfer empty needle");
 			if(from.length > 1)
 				console.warn("shouldn't xfer stack though cse can't guarantee");
 
