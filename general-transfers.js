@@ -252,185 +252,18 @@ function offsetsToString(offsets) {
 
 if (require.main === module) {
 	console.log("Doing some test general transfers.");
+
+	const testDriver = require('./test-driver.js');
+
+	//if files were passed, run tests this way:
+	if (process.argv.length > 2) {
+		testDriver.runTests(general_transfers);
+		return;
+	}
+
+	//otherwise run some local-to-this-file tests:
 	function test(offsets, firsts, orders, limit) {
-		if (typeof(offsets) === "string") {
-			let parsed = [];
-			offsets.split(/\s+/).forEach(function(t){
-				if (t === '') return;
-				parsed.push(parseInt(t));
-			});
-			offsets = parsed;
-		}
-		if (typeof(firsts) === "string") {
-			let parsed = [];
-			firsts.split(/\s+/).forEach(function(t){
-				if (t === '') return;
-				else if (t === '*') parsed.push(true);
-				else if (t === '.') parsed.push(false);
-				else console.error("Unexpected 'firsts' character '" + t + "'");
-			});
-			firsts = parsed;
-		}
-		if (typeof(orders) === "string") {
-			let parsed = [];
-			orders.split(/\s+/).forEach(function(t){
-				if (t === '') return;
-				else if (t === '+') parsed.push(1);
-				else if (t === '.') parsed.push(0);
-				else if (t === '-') parsed.push(-1);
-				else console.error("Unexpected 'orders' character '" + t + "'");
-			});
-			orders = parsed;
-		}
-
-
-		let needles = {};
-		for (let i = 0; i < offsets.length; ++i) {
-			needles['f' + i] = [i];
-		}
-
-		function dumpNeedles() {
-			let minNeedle = 0;
-			let maxNeedle = offsets.length-1;
-			for (let n in needles) {
-				let m = n.match(/^[fb]s?(-?\d+)$/);
-				console.assert(m);
-				let val = parseInt(m[1]);
-				minNeedle = Math.min(minNeedle, val);
-				maxNeedle = Math.max(maxNeedle, val);
-			}
-
-			[
-				['b',  '   back:'],
-				['bs', ' backSl:'],
-				['fs', 'frontSl:'],
-				['f',  '  front:'],
-			].forEach(function(bedName) {
-				const bed = bedName[0];
-				const name = bedName[1];
-				let layers = [];
-				for (let n = minNeedle; n <= maxNeedle; ++n) {
-					if ((bed + n) in needles) {
-						needles[bed + n].forEach(function(i, d){
-							while (d >= layers.length) layers.push("");
-							while (layers[d].length < n * 3) layers[d] += "   ";
-							layers[d] += " ";
-							if (i < 10) layers[d] += " " + i;
-							else layers[d] += i;
-						});
-					}
-				}
-				for (let l = layers.length - 1; l >= 0; --l) {
-					console.log(name + layers[l]);
-				}
-			});
-
-			let infoI = "";
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if      (n < -10) infoI += n.toString();
-				else if (n <   0) infoI += " " + n.toString();
-				else if (n === 0) infoI += "  0";
-				else if (n <  10) infoI += "  " + n.toString();
-				else              infoI += " " + n.toString();
-			}
-			console.log("  index:" + infoI);
-		}
-		let log = [];
-
-		function xfer(fromBed, fromIndex, toBed, toIndex) {
-			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
-			//console.log(cmd);
-			log.push(cmd);
-
-			console.assert(
-				((fromBed === 'f' || fromBed === 'fs') && (toBed === 'b' || toBed === 'bs') && !(fromBed === 'fs' && toBed === 'bs'))
-				|| ((fromBed === 'b' || fromBed === 'bs') && (toBed === 'f' || toBed === 'fs') && !(fromBed === 'bs' && toBed === 'fs')),
-				"must xfer f[s] <=> b[s]");
-
-			//check for valid racking:
-			let at = [];
-			for (let i = 0; i < offsets.length; ++i) {
-				at.push(null);
-			}
-			for (var n in needles) {
-				let m = n.match(/^([fb]s?)(-?\d+)$/);
-				console.assert(m);
-				needles[n].forEach(function(s){
-					console.assert(at[s] === null, "each stitch can only be in one place");
-					at[s] = {bed:m[1], needle:parseInt(m[2])};
-				});
-			}
-
-			let minRacking = -Infinity;
-			let maxRacking = Infinity;
-			for (let i = 1; i < offsets.length; ++i) {
-				if (at[i-1].bed[0] === at[i].bed[0]) continue;
-				let slack = Math.max(1, Math.abs( i+offsets[i] - (i-1+offsets[i-1]) ));
-				let back  = (at[i].bed[0] === 'b' ? at[i].needle : at[i-1].needle);
-				let front = (at[i].bed[0] === 'b' ? at[i-1].needle : at[i].needle);
-
-				//-slack <= back + racking - front <= slack
-				minRacking = Math.max(minRacking, -slack - back + front);
-				maxRacking = Math.min(maxRacking,  slack - back + front);
-			}
-			console.assert(minRacking <= maxRacking, "there is a valid racking for this stitch configuration");
-			let racking = (fromBed[0] === 'f' ? fromIndex - toIndex : toIndex - fromIndex);
-			console.assert(minRacking <= racking && racking <= maxRacking, "required racking " + racking + " is outside [" + minRacking + ", " + maxRacking + "] valid range. (" + cmd + ")");
-
-
-
-			var from = needles[fromBed + fromIndex];
-			if (!((toBed + toIndex) in needles)) needles[toBed + toIndex] = [];
-			var to = needles[toBed + toIndex];
-
-			console.assert(from.length !== 0, "no reason to xfer empty needle");
-			console.assert(from.length === 1, "shouldn't ever xfer stack");
-
-			while (from.length) to.push(from.pop());
-
-			//dumpNeedles(); //DEBUG
-		}
-
-		let infoI = "";
-		let infoO = "";
-		let infoF = "";
-		for (let i = 0; i < offsets.length; ++i) {
-			infoI += " ";
-			infoO += " ";
-			infoF += " ";
-
-			if (i < 10) infoI += " " + i;
-			else infoI += i;
-
-			if (offsets[i] < 0) infoO += offsets[i];
-			else if (offsets[i] > 0) infoO += "+" + offsets[i];
-			else infoO += " 0";
-
-			if (firsts[i]) {
-				infoF += " *";
-			} else {
-				infoF += " .";
-			}
-		}
-		console.log(" index:" + infoI);
-		console.log("offset:" + infoO);
-		console.log(" first:" + infoF);
-
-		general_transfers(offsets, firsts, orders, limit, xfer);
-
-		dumpNeedles();
-
-		for (let i = 0; i < offsets.length; ++i) {
-			var n = needles['f' + (i + offsets[i])];
-			console.assert(n.indexOf(i) !== -1, "needle got to destination");
-			if (firsts[i]) {
-				console.assert(n.indexOf(i) === 0, "first got to destination first");
-			}
-		}
-
-		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
-
-		return log;
+		testDriver.test(general_transfers, offsets, firsts, orders, limit);
 	}
 
 	test([0,  0,-1,-2,-2,-3,-4, 0,+4,+3,+2,+2,+1, 0, 0],
@@ -473,72 +306,55 @@ if (require.main === module) {
 	"  .  .  .  .  .  .  .  .  .  .",
 	8);
 
-
 	test(
 	"-10 -10 -10 -10 -10 -10 -10 -10 -10 -10 -10 -10 -10 -9 -9 -8 -8 -7 -7 -6 -6 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -5 -5 -5 -5 -5 -5 -5 -6 -5 -4 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -6 -5 -4 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -6 -5 -4 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -6 -5 -4 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -6 -5 -4 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -6 -5 -4 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -6 -5 -4 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -5 -6 -5 -4 -5 -5 -5 -5 -5 -5 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -4 -6 -4 -6 -5 -5 -4 -6 -5 -4 -6 -5 -4 -6 -5 -4 -6 -5 -4 -6 -5 -4 -6 -5 -4 -6 -5 -4 -6 -5 -4 -6 -5 -4 -3 -5 -4 -3 -5 -4 -3 -5 -4 -3 -5 -4 -3 -5 -4 -3 -5 -4 -3 -5 -4 -3 -5 -4 -3 -2 -4 -3 -2 -4 -3 -2 -4 -3 -2 -4 -3 -2 -4 -3 -2 -4 -3 -2 -4 -3 -2 -4 -3 -2 -1 -3 -2 -1 -3 -2 -1 -3 -2 -1 -3 -2 -1 -3 -2 -1 -3 -2 -1 -3 -2 -1 -3 -2 -1  0 -2 -1  0 -2 -1  0 -2 -1  0 -2 -1  0 -2 -1  0 -2 -1  0 -2 -1  0 -2 -1  0 +1 -1  0 +1 -1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0",
 	".   .   .   .   .   .   .   .   .   .   .   .   .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  *  .  *  .  .  .  .  .  .  .  .  .  .  .  .  .  *  .  *  .  .  .  .  .  .  .  .  .  .  .  .  .  *  .  *  .  .  .  .  .  .  .  .  .  .  .  .  .  *  .  *  .  .  .  .  .  .  .  .  .  .  .  .  *  .  *  .  .  .  .  .  .  .  .  .  .  .  .  .  *  .  *  .  .  .  .  .  .  .  .  .  .  .  .  .  *  .  *  .  .  .  .  .  .  .  .  .  .  .  .  .  *  .  *  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . ",
  	"  .   .   .   .   .   .   .   .   .   .   .   .   .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  -  +  +  -  .  -  +  +  -  .  -  +  +  -  .  -  +  +  -  .  -  +  +  -  .  -  +  +  -  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  -  +  +  -  .  -  +  +  -  .  -  +  +  -  .  -  +  +  -  .  -  +  +  -  .  -  +  +  -  .  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  -  +  .  .  -  +  .  -  +  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .",
 	8);
 
-
-
-
 	test([ 0, 0,+1, 0, 0,+1,-1, 0, 0],
 	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0],
 		 [ 0, 0, 0, 0, 0, 0, 0, 0, 0],
 		 2);
 
+	test([ 0, 0,+1,+1,+2,+2,+1,+1, 0, 0,+1, 0],
+	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		 2);
+
 /*
+	//move stitches outside starting range:
 	test([+1,+2,+3,+3,+2,+2,+1,+1],
-	     [ 0, 0, 0, 0, 1, 1, 0, 0], 8);
+	     [ 0, 0, 0, 0, 1, 1, 0, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0],
+		 8);
 
 	test([-1,-1,-2,-2,-3,-3,-2,-1],
-	     [ 0, 0, 1, 1, 0, 0, 0, 0], 8);
+	     [ 0, 0, 1, 1, 0, 0, 0, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0],
+		 8);
 
-	test([ 0, 0,+1,+1,+2,+2,+1,+1, 0, 0,+1, 0],
-	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], 2);
 
 	test([-4,-3,-2,-1, 0,+1,+2,+3],
-	     [ 0, 0, 0, 0, 0, 0, 1, 0], 3);
-
+	     [ 0, 0, 0, 0, 0, 0, 1, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0],
+		 3);
+*/
 
 	test([+4,+4,+3,+3,+2,+2,+1,+1, 0,-1,-1,-2,-2,-3,-3],
-	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3);
+	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		 3);
+/*
 
 	test([-4,-4,-3,-3,-2,-2,-1,-1, 0,+1,+1,+2,+2,+3,+3],
-	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0], 2);
+	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		 2);
+*/
 
 	test([ 0,-1,-1, 0, 1, 1, 1, 0,-1, 1, 0, 0],
-	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0], 8);
-
- */
-
-	const fs = require('fs');
-	for (let i = 2; i < process.argv.length; ++i) {
-		let name = process.argv[i];
-		if (name.endsWith("/")) name = name.substr(0,name.length-1);
-		const stats = fs.lstatSync(name);
-		let files;
-		if (stats.isDirectory()) {
-			files = [];
-			fs.readdirSync(name).forEach(function(filename){
-				files.push(name + "/" + filename);
-			});
-		} else {
-			files = [name];
-		}
-		files.forEach(function(filename){
-			console.log(filename + " ...");
-			let data = null;
-			try {
-				data = JSON.parse(fs.readFileSync(filename));
-			} catch (e) {
-				console.log(e);
-				data = null;
-			}
-			if (data !== null) {
-				test(data.offsets, data.firsts, data.orders, data.transferMax);
-			}
-		});
-	}
+	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+	     [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		 8);
 }
