@@ -117,7 +117,7 @@ function make_right_leaning_decreases(offsets, firsts) {
 					let minFloor = offsets[index];
 					let start = index+1;
 					while (start < offsets.length && newOffsets[start] < minFloor) {
-						console.log("filled " + start);
+						//console.log("filled " + start);
 						newOffsets[start] = minFloor;
 						++start;
 					}
@@ -367,11 +367,12 @@ if (require.main === module) {
 			
 		}
 		let log = [];
+		
 
 		function xfer(fromBed, fromIndex, toBed, toIndex) {
 			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
 
-			console.log(cmd);
+			//console.log(cmd);
 			log.push(cmd);
 			
 			console.assert((fromBed === 'f' && toBed === 'b') || (fromBed === 'b' && toBed === 'f'), "must xfer f <=> b");
@@ -449,7 +450,7 @@ if (require.main === module) {
 		}
 
 		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
-
+		
 		return log;
 	}
 
@@ -497,17 +498,37 @@ if (require.main === module) {
 				let validMin = minRacking;
 				for (let i = 0; i < data.offsets.length; ++i) {
 					if (data.offsets[i] < validMin) {
-						console.log("offset falls below valid min value" );
+						console.log("file contains cables");
+						print_goal(data.offsets, data.firsts);
 						return;
 					}
-					validMin = Math.max(data.offsets[i]-1, minRacking);
+					validMin = data.offsets[i]-1;
 					if (data.offsets[i] > maxRacking) {
-						console.log("offset is above maxRacking" );
+						console.log("offset " + data.offsets[i] + " is above valid maxRacking " + maxRacking);
+						print_goal(data.offsets, data.firsts);
 						return;
 					}
+					if (data.offsets[i] < minRacking) {
+						console.log("offset " + data.offsets[i] + " is below valid minRacking " + minRacking);
+						print_goal(data.offsets, data.firsts);
+						return;
+					}
+
 				}
 
-				test(data.offsets, data.firsts, data.transferMax);
+				test_log = test(data.offsets, data.firsts, data.transferMax);
+
+				//generate transfers file
+				const path = require('path');
+				let transfer_name = path.basename(filename, '.xfers');
+				let results_file = path.join('results', 'multipass', transfer_name + '.xout');
+
+				data.transfers = test_log;
+
+				fs.writeFileSync(results_file, JSON.stringify(data, null, 4));
+
+
+
 			}
 		});
 	}
