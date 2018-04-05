@@ -119,9 +119,12 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 8) {
 		let p = 0;
 		for(let i = 0; i  < n_stitches; i++){
 			p += Math.abs( state.offsets[i] );
+			
 		}
+		// TODO keep track of firsts
 		return p;
-		return state.offsets.reduce(accum_add);
+		// something wierd with 1 element arrays and so on 
+		// return state.offsets.reduce(accum_add);
 	};
 
 	function visit_state(state){
