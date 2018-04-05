@@ -1,3 +1,7 @@
+#!/bin/sh
+':' //; exec "$(command -v nodejs || command -v node)" "$0" "$@"
+"use strict";
+
 function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 
 	var currentOffset = 0;
@@ -516,7 +520,7 @@ if (require.main === module) {
 
 				}
 
-				test_log = test(data.offsets, data.firsts, data.transferMax);
+				let test_log = test(data.offsets, data.firsts, data.transferMax);
 
 				//generate transfers file
 				const path = require('path');
