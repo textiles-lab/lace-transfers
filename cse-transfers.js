@@ -17,7 +17,7 @@
 // cse_transfers returns a transfer plan by calling
 //   xfer('f'/'b', i, 'f'/'b', i+o) to move stitches around
 
-function cse_transfers(offsets, firsts, xfer, max_racking = 8) {
+function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 	
 	//assumes everything is on the front bed to begin with,
 	//and wants to be at offsets on the front bed as well
@@ -72,14 +72,14 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 8) {
 
 		for(let i = 0; i < n_stitches-1; i++){
 			let bridge = 0;
-			//if( state.do == Expanding && (i == state.r || i+1 == state.l)) bridge = 1;
+			if( state.do == Expanding && ((i == state.r && state.current[i+1]==state.current[i] )|| (i+1 == state.l && state.current[i+1]==state.current[i]))) bridge = 1;
 			if ( Math.abs(state.current[i+1]- state.current[i] + bridge) > slack_forward[i] ){
 				return false;
 			}
 		}
 		for(let i = 1; i < n_stitches; i++){
 			let bridge = 0;
-			//if(state.do == Expanding && (i == state.l || i == state.r+1)) bridge = 1;
+			if(state.do == Expanding && ((i == state.l && state.current[i] == state.current[i-1] ) || (i == state.r+1 && state.current[i] == state.current[i-1]))) bridge = 1;
 			if( Math.abs(state.current[i] - state.current[i-1] + bridge) > slack_backward[i]){
 				return false;
 			}
@@ -680,4 +680,6 @@ if (require.main === module) {
 	test([-1,-1,-2,-2,-3,-3,-2,-1],
 		[ 0, 0, 1, 1, 0, 0, 0, 0]);
 
+	test([+1,+1,+2,+2,+3,+3,+2,+1],
+		[0,0,0,0,0,0,0,0],4);
 }
