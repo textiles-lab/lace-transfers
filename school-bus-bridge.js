@@ -523,9 +523,10 @@ if (require.main === module) {
 				let transfer_name = path.basename(filename, '.xfers');
 				let results_file = path.join('results', 'multipass', transfer_name + '.xout');
 
-				data.transfers = test_log;
+				//data.transfers = test_log;
+				let result_string = ";" + JSON.stringify(data) + '\n' + test_log.join('\n') + '\n';
 
-				fs.writeFileSync(results_file, JSON.stringify(data, null, 4));
+				fs.writeFileSync(results_file, result_string);
 
 
 
