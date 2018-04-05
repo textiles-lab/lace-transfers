@@ -309,233 +309,32 @@ function offsetsToString(offsets) {
 }
 
 if (require.main === module) {
-	console.log("Doing some test general transfers.");
+	console.log("Doing some test transfers.");
+
+	const testDriver = require('./test-driver.js');
+
+	//adaptor function that throws away unused parameters:
+	function _multi_pass_transfers(offsets, firsts, orders, limit, xfer) {
+		multi_pass_transfers(offsets, firsts, -limit, limit, xfer);
+	}
+
+	if (process.argv.length > 2) {
+		testDriver.runTests(_multi_pass_transfers, {
+			skipCables:true,
+			skipLong:true,
+			ignoreStacks:true,
+			ignoreEmpty:true
+		});
+		return;
+	}
+
 	function test(offsets, firsts, limit) {
-		let needles = {};
-		for (let i = 0; i < offsets.length; ++i) {
-			needles['f' + i] = [i];
-		}
-
-		function dumpNeedles() {
-			let minNeedle = 0;
-			let maxNeedle = offsets.length-1;
-			for (let n in needles) {
-				//if (needles[n].length == 0) continue;
-				let m = n.match(/^[fb](-?\d+)$/);
-				console.assert(m);
-				let val = parseInt(m[1]);
-				minNeedle = Math.min(minNeedle, val);
-				maxNeedle = Math.max(maxNeedle, val);
-			}
-
-			let layers = [];
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if (('b' + n) in needles) {
-					needles['b' + n].forEach(function(i, d){
-						while (d >= layers.length) layers.push("");
-						while (layers[d].length < (n-minNeedle) * 3) layers[d] += "   ";
-						layers[d] += " ";
-						if (i < 10) layers[d] += " " + i;
-						else layers[d] += i;
-					});
-				}
-			}
-			for (let l = layers.length - 1; l >= 0; --l) {
-				console.log(" back:" + layers[l]);
-			}
-			layers = [];
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if (('f' + n) in needles) {
-					needles['f' + n].forEach(function(i, d){
-						while (d >= layers.length) layers.push("");
-						while (layers[d].length < (n-minNeedle) * 3) layers[d] += "   ";
-						layers[d] += " ";
-						if (i < 10) layers[d] += " " + i;
-						else layers[d] += i;
-					});
-				}
-			}
-			for (let l = layers.length - 1; l >= 0; --l) {
-				console.log("front:" + layers[l]);
-			}
-
-			let infoI = "";
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if      (n < -10) infoI += n.toString();
-				else if (n <   0) infoI += " " + n.toString();
-				else if (n === 0) infoI += "  0";
-				else if (n <  10) infoI += "  " + n.toString();
-				else              infoI += " " + n.toString();
-			}
-			console.log("index:" + infoI + "\n");
-			
-		}
-		let log = [];
-		
-
-		function xfer(fromBed, fromIndex, toBed, toIndex) {
-			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
-
-			//console.log(cmd);
-			log.push(cmd);
-			
-			console.assert((fromBed === 'f' && toBed === 'b') || (fromBed === 'b' && toBed === 'f'), "must xfer f <=> b");
-
-			//check for valid racking:
-			let at = [];
-			for (let i = 0; i < offsets.length; ++i) {
-				at.push(null);
-			}
-			for (var n in needles) {
-				let m = n.match(/^([fb])(-?\d+)$/);
-				console.assert(m);
-				needles[n].forEach(function(s){
-					console.assert(at[s] === null, "each stitch can only be in one place");
-					at[s] = {bed:m[1], needle:parseInt(m[2])};
-				});
-			}
-
-			let minRacking = -Infinity;
-			let maxRacking = Infinity;
-			for (let i = 1; i < offsets.length; ++i) {
-				if (at[i-1].bed === at[i].bed) continue;
-				let slack = Math.max(1, Math.abs( i+offsets[i] - (i-1+offsets[i-1]) ));
-				let back  = (at[i].bed === 'b' ? at[i].needle : at[i-1].needle);
-				let front = (at[i].bed === 'b' ? at[i-1].needle : at[i].needle);
-
-				//-slack <= back + racking - front <= slack
-				minRacking = Math.max(minRacking, -slack - back + front);
-				maxRacking = Math.min(maxRacking,  slack - back + front);
-			}
-			console.assert(minRacking <= maxRacking, "there is a valid racking for this stitch configuration");
-			let racking = (fromBed === 'f' ? fromIndex - toIndex : toIndex - fromIndex);
-			if (racking < minRacking || racking > maxRacking) {
-				dumpNeedles();
-			}
-
-			console.assert(minRacking <= racking && racking <= maxRacking, "required racking " + racking + " is outside [" + minRacking + ", " + maxRacking + "] valid range. (" + cmd + ")");
-
-
-
-			var from = needles[fromBed + fromIndex];
-			if (!((toBed + toIndex) in needles)) needles[toBed + toIndex] = [];
-			var to = needles[toBed + toIndex];
-
-			/*if (from.length == 0) {
-				//console.log("empty needle, not going to transfer");
-				return;
-			}
-			//console.assert(from.length === 1, "shouldn't ever xfer stack");
-			console.assert(from.length !== 0, "no reason to xfer empty needle");*/
-
-
-			while (from.length) to.push(from.pop());
-
-			
-			//dumpNeedles(); //DEBUG
-		}
-
-		print_goal(offsets, firsts);
-
-		let minRacking = -1*limit;
-		let maxRacking = limit;
-
-		multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer);
-
-		print_goal(offsets, firsts);
-		dumpNeedles();
-
-		for (let i = 0; i < offsets.length; ++i) {
-			var n = needles['f' + (i + offsets[i])];
-			console.assert(n.indexOf(i) !== -1, "needle got to destination");
-			if (firsts[i]) {
-				console.assert(n.indexOf(i) === 0, "first got to destination first");
-			}
-		}
-
-		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
-		
-		return log;
+		let orders = [];
+		while (orders.length < offsets.length) orders.push(0);
+		testDriver.test(_multi_pass_transfers, offsets, firsts, orders, limit, {ignoreStacks:true});
 	}
 
 	test([+1,+1,+2,+2,+3,+3,+2,+1],
 	     [ 0, 0, 0, 0, 0, 1, 0, 0], 4);
-
-	const fs = require('fs');
-	for (let i = 2; i < process.argv.length; ++i) {
-		let name = process.argv[i];
-		if (name.endsWith("/")) name = name.substr(0,name.length-1);
-		const stats = fs.lstatSync(name);
-		let files;
-		if (stats.isDirectory()) {
-			files = [];
-			fs.readdirSync(name).forEach(function(filename){
-				files.push(name + "/" + filename);
-			});
-		} else {
-			files = [name];
-		}
-		files.forEach(function(filename){
-			console.log(filename + " ...");
-			let data = null;
-			try {
-				data = JSON.parse(fs.readFileSync(filename));
-			} catch (e) {
-				console.log(e);
-				data = null;
-			}
-			if (data !== null) {
-				//Check inputs:
-				let minRacking = -1*data.transferMax;
-				let maxRacking = data.transferMax;
-
-				if (data.offsets.length != data.firsts.length) {
-					console.log("Offsets and firsts should be the same length");
-					return;
-				}
-
-				if (minRacking >= maxRacking) {
-					console.log("min racking must be strictly less than max racking");
-					return;
-				}
-				
-				let validMin = minRacking;
-				for (let i = 0; i < data.offsets.length; ++i) {
-					if (data.offsets[i] < validMin) {
-						console.log("file contains cables");
-						print_goal(data.offsets, data.firsts);
-						return;
-					}
-					validMin = data.offsets[i]-1;
-					if (data.offsets[i] > maxRacking) {
-						console.log("offset " + data.offsets[i] + " is above valid maxRacking " + maxRacking);
-						print_goal(data.offsets, data.firsts);
-						return;
-					}
-					if (data.offsets[i] < minRacking) {
-						console.log("offset " + data.offsets[i] + " is below valid minRacking " + minRacking);
-						print_goal(data.offsets, data.firsts);
-						return;
-					}
-
-				}
-
-				let test_log = test(data.offsets, data.firsts, data.transferMax);
-
-				//generate transfers file
-				const path = require('path');
-				let transfer_name = path.basename(filename, '.xfers');
-				let results_file = path.join('results', 'multipass', transfer_name + '.xout');
-
-				//data.transfers = test_log;
-				let result_string = ";" + JSON.stringify(data) + '\n' + test_log.join('\n') + '\n';
-
-				fs.writeFileSync(results_file, result_string);
-
-
-
-			}
-		});
-	}
 
 }

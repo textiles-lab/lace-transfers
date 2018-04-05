@@ -7,10 +7,14 @@
 //  checks that all stitches get to their destinations
 //    will throw if not,
 //    will also throw if first-marked stitch did not reach destination (unless options.ignoreFirsts)
+//    will also throw if stacked stitches are transferred (unless options.ignoreFirsts)
+//    will also throw if empty needles are transferred (unless options.ignoreEmpty)
 //  returns an object:
 //   ret = {
 //      log:["xfer f0 b0", ...], //list of xfer operations
 //      invalidFirsts:0, //number of invalid first stitches, 0 unless options.ignoreFirsts is set
+//      xferredStacks:0, //number of stacked stitches transferred, 0 unless options.ignoreStacks is set
+//      xferredEmpty:0, //number of empty needles transferred, 0 unless options.ignoreEmpty is set
 //   }
 //
 // runTests(method, options = {})
@@ -20,7 +24,7 @@
 //  if options.skipCables is set, does not attempt test cases with cables
 //  if options.skipLace is set, does not attempt test cases with lace (== stacking loops)
 //  if options.skipLong is set, does not attempt test cases with offsets outside of maxTransfer
-//  options.ignoreFirsts is passed to test
+//  options.ignoreFirsts, options.ignoreStacks are passed to test
 //
 //  returns an object:
 //   ret = {
@@ -79,6 +83,8 @@ function test(method, offsets, firsts, orders, limit, options) {
 	console.assert(offsets.length === orders.length, "offsets and orders should be the same length");
 
 	const ignoreFirsts = Boolean(options.ignoreFirsts);
+	const ignoreStacks = Boolean(options.ignoreStacks);
+	const ignoreEmpty = Boolean(options.ignoreEmpty);
 
 	//----------------------------------
 
@@ -149,6 +155,9 @@ function test(method, offsets, firsts, orders, limit, options) {
 
 	let log = [];
 
+	let xferredStacks = 0;
+	let xferredEmpty = 0;
+
 	function xfer(fromBed, fromIndex, toBed, toIndex) {
 		let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
 		//console.log(cmd);
@@ -194,8 +203,18 @@ function test(method, offsets, firsts, orders, limit, options) {
 		if (!((toBed + toIndex) in needles)) needles[toBed + toIndex] = [];
 		var to = needles[toBed + toIndex];
 
-		console.assert(from.length !== 0, "no reason to xfer empty needle");
-		console.assert(from.length === 1, "shouldn't ever xfer stack");
+		if (from.length === 0) {
+			++xferredEmpty;
+			if (!ignoreEmpty) {
+				console.assert(from.length !== 0, "no reason to xfer empty needle");
+			}
+		}
+		if (from.length > 1) {
+			++xferredStacks;
+			if (!ignoreStacks) {
+				console.assert(from.length === 1, "shouldn't ever xfer stack");
+			}
+		}
 
 		while (from.length) to.push(from.pop());
 
@@ -251,6 +270,8 @@ function test(method, offsets, firsts, orders, limit, options) {
 
 	return {
 		invalidFirsts:invalidFirsts,
+		xferredStacks:xferredStacks,
+		xferredEmpty:xferredEmpty,
 		log:log,
 	};
 }
@@ -277,8 +298,12 @@ function runTests(method, options) {
 	const skipLace = ('skipLace' in options ? Boolean(options.skipLace) : false);
 	const skipLong = ('skipLong' in options ? Boolean(options.skipLong) : false);
 
+	console.log("skipCables: " + skipCables); //DEBUG
+
 	const testOptions = {};
 	if (options.ignoreFirsts) testOptions.ignoreFirsts = true;
+	if (options.ignoreStacks) testOptions.ignoreStacks = true;
+	if (options.ignoreEmpty) testOptions.ignoreEmpty = true;
 
 	//------- actual testing code ------
 
@@ -364,16 +389,17 @@ function runTests(method, options) {
 
 			//-------------- actually do the test ------------
 
-			stats.run += 1;
+			stats.ran += 1;
 
 			let test_log;
-			//try {
+			try {
 				test_log = test(method, data.offsets, data.firsts, data.orders, data.transferMax, testOptions);
-			/*} catch (e) {
+			} catch (e) {
 				console.log(e);
 				stats.failed += 1;
+				if (options.rethrow) throw e;
 				return;
-			}*/
+			}
 
 			stats.passed += 1;
 

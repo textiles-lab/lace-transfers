@@ -9,13 +9,13 @@
 // firsts: array of the same length as offsets;
 //     if Boolean(offsets[i]) is true, stitch[i] will
 //     arrive at its destination needle first.
-// xferToBack, xferToFront: output functions
+// xfer: output function
 //
 // lace_transfers returns a transfer plan by calling
 //   xferToBack(i) and xferToFront(i,offsets[i]) for
 //   each stitch it wants to move
 
-function lace_transfers(offsets, firsts, xferToBack, xferToFront) {
+function lace_transfers(offsets, firsts, xfer) {
 	//Check inputs:
 	if (offsets.length !== firsts.length) {
 		throw "Offsets and firsts should be the same length.";
@@ -35,6 +35,18 @@ function lace_transfers(offsets, firsts, xferToBack, xferToFront) {
 	}
 	if (offsets.length > 0 && offsets[offsets.length-1] === 1) {
 		throw "Rightmost offset should be <= 0";
+	}
+
+	if (typeof(xfer) !== 'function') {
+		throw "xfer should be a function";
+	}
+
+	function xferToBack(i) {
+		xfer('f', i, 'b', i);
+	}
+
+	function xferToFront(i, ofs) {
+		xfer('b', i, 'f', i+ofs);
 	}
 
 	//basic idea:
@@ -158,91 +170,26 @@ exports.lace_transfers = lace_transfers;
 
 if (require.main === module) {
 	console.log("Doing some test lace transfers.");
+
+	const testDriver = require('./test-driver.js');
+
+	//adaptor function that throws away unused parameters:
+	function _lace_transfers(offsets, firsts, orders, limit, xfer) {
+		lace_transfers(offsets, firsts, xfer);
+	}
+
+	if (process.argv.length > 2) {
+		testDriver.runTests(_lace_transfers, {
+			skipCables:true
+		});
+		return;
+	}
+
 	function test(offsets, firsts) {
-		let frontStacks = [];
-		let backStacks = [];
-		let moved = [];
-		for (let i = 0; i < offsets.length; ++i) {
-			frontStacks.push([i]);
-			backStacks.push([]);
-			moved.push(false);
-		}
-		let log = [];
-		function xferToBack(i) {
-			var stack = frontStacks[i];
-			console.assert(stack.length === 1 && stack[0] === i, "xferToBack should be called on a lone loop on the front");
-			console.assert(backStacks[i].length === 0, "xferToBack should have empty dest");
-			backStacks[i] = stack;
-			frontStacks[i] = [];
-			moved[i] = true;
-
-			let cmd = "xfer " + 'f' + i + " " + 'b' + i;
-			log.push(cmd);
-			console.log(cmd);
-		}
-		function xferToFront(i, ofs) {
-			console.assert(offsets[i] === ofs, "lace_transfers must pass offsets[i]");
-
-			var stack = backStacks[i];
-			console.assert(stack.length === 1 && stack[0] === i, "xferToFront should be called on a lone loop on the back");
-			console.assert(!(firsts[i] && frontStacks[i+ofs].length > 0), "xferToFront shouldn't put first stitch anywhere but first");
-
-			backStacks[i] = [];
-			frontStacks[i+ofs].push(i);
-
-			let cmd = "xfer " + 'b' + i + " " + 'f' + (i+ofs) + " ; ofs: " + ofs;
-			log.push(cmd);
-			console.log(cmd);
-		}
-
-		let infoI = "";
-		let infoO = "";
-		let infoF = "";
-		for (let i = 0; i < offsets.length; ++i) {
-			infoI += " ";
-			infoO += " ";
-			infoF += " ";
-
-			if (i < 10) infoI += " " + i;
-			else infoI += i;
-
-			if (offsets[i] < 0) infoO += offsets[i];
-			else if (offsets[i] > 0) infoO += "+" + offsets[i];
-			else infoO += " 0";
-
-			if (firsts[i]) {
-				infoF += " *";
-			} else {
-				infoF += "  ";
-			}
-		}
-		console.log(" index:" + infoI);
-		console.log("offset:" + infoO);
-		console.log(" first:" + infoF);
-
-		lace_transfers(offsets, firsts, xferToBack, xferToFront);
-
-		for (let i = 0; i < offsets.length; ++i) {
-			console.assert(backStacks[i].length === 0, "back needles left empty");
-			console.assert(moved[i] || offsets[i] === 0, "moved needles that needed it");
-		}
-
-		let layers = [];
-		for (let n = 0; n < offsets.length; ++n) {
-			frontStacks[n].forEach(function(i, d){
-				while (d >= layers.length) layers.push("");
-				while (layers[d].length < n * 3) layers[d] += "   ";
-				layers[d] += " ";
-				if (i < 10) layers[d] += " " + i;
-				else layers[d] += i;
-			});
-		}
-		for (let l = layers.length - 1; l >= 0; --l) {
-			console.log("stitches:" + layers[l]);
-		}
-		console.log("   index:" + infoI);
-		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
-
+		let orders = [];
+		while (orders.length < offsets.length) orders.push(0);
+		let limit = 1;
+		testDriver.test(_lace_transfers, offsets, firsts, orders, limit);
 	}
 
 	test([ 0,-1,-1, 0, 1, 1, 1, 0,-1, 1, 0, 0],
