@@ -4,8 +4,9 @@
 
 //cse_transfers computes transfers for flat knitting using the 
 //collapse, stretch, expand strategy. No roll is required because, well flat.
-//first pass, do not care about firsts
-
+//each iteration involves a stretch to back and expand to front phase
+//after each iteration, the cost should monotonically decrease
+//
 //Parameters:
 // offsets: array of offsets for each stitch index 
 // firsts: array of the same length as offsets;
@@ -16,16 +17,21 @@
 
 // cse_transfers returns a transfer plan by calling
 //   xfer('f'/'b', i, 'f'/'b', i+o) to move stitches around
-
-function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
+// options {ignoreFirsts:true/false} specifies if firsts need to be
+// stacked in order or not
+function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 	
 	//assumes everything is on the front bed to begin with,
 	//and wants to be at offsets on the front bed as well
 	let verbose = false;
+	let strict_order = !Boolean(options.ignoreFirsts);
+	
 	const Expanding = 0;
 	const StretchToBack = 1;
 	const ExpandToFront = 2;
-	const action = ['Expanding', 'Stretch-to-back', 'Expand-to-front'];
+	const action = ['Expanding......',
+					'Stretch-to-back',
+					'Expand-to-front'];
 	let n_stitches = offsets.length;
 	let slack_forward = new Array(n_stitches).fill(max_racking);
 	let slack_backward = new Array(n_stitches).fill(max_racking);
@@ -39,6 +45,24 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 		target.push(i + offsets[i]);
 	};
 
+	if(strict_order){
+		let no_firsts = true;
+		for(let i = 0; i < n_stitches; i++){
+			if(firsts[i]){
+				no_firsts = false;
+				for(let j = 0; j < n_stitches; j++){
+					if(j==i || !firsts[j]) continue;
+					if(target[j] == target[i]){
+						console.log("index i = ", i, " target = ", target[i], "firsts =", firsts[i]);
+						console.log("index j = ", j, " target = ", target[j], "firsts=", firsts[j]);
+					}
+					console.assert(target[j] != target[i], "two targets wan't to be first, bad input"); 
+				}
+			}
+		}
+		// avoid computing extended penalty if no firsts 
+		strict_order = !no_firsts;
+	}
 	//console.log('target:', target);
 	
 	for(let i = 0; i < n_stitches - 1; i++){
@@ -53,7 +77,7 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 	
 	function new_state(state = undefined){
 		//let first_state = {'current': current.slice(), 'prev': current.slice(), 'offsets':offsets.slice(),'do':StretchToBack, 'path':new Array(), 'l':0, 'r':n_stitches-1};
-		let s = {'current': undefined,'prev':undefined,  'offsets': undefined, 'do':undefined, 'path': undefined ,'l':undefined, 'r':undefined, 'chain':undefined};
+		let s = {'current': undefined,'prev':undefined,  'offsets': undefined, 'do':undefined, 'path': undefined ,'l':undefined, 'r':undefined, 'chain':undefined, 'rack':undefined};
 		if(state != undefined){
 			s.current = state.current.slice();
 			s.offsets = state.offsets.slice();
@@ -62,34 +86,59 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 			s.r = state.r;// Number(state.r);
 			s.prev = state.prev.slice();
 			s.do =state.do;
+			s.rack = state.rack;
 			s.chain = state.chain.slice();
 			s.chain.push(state);
+			
 		}
 		return s;
 	};
 
 	function state_respects_slack(state){
 
-		for(let i = 0; i < n_stitches-1; i++){
-			let bridge = 0;
-			if( state.do == Expanding && ((i == state.r && state.current[i+1]==state.current[i] )|| (i+1 == state.l && state.current[i+1]==state.current[i]))) bridge = 1;
-			if ( Math.abs(state.current[i+1]- state.current[i] + bridge) > slack_forward[i] ){
-				return false;
+		//stretch = abs(B + R - F) For B being back needle index, F being front needle index, R being racking.
+		
+		let beds = [];
+		for(let i = 0; i < n_stitches; i++){
+			if( i < state.l){
+				beds.push('f');
+			}
+			else if( i >= state.l && i <= state.r){
+				beds.push('b');
+			}
+			else if(i > state.r){
+				beds.push('f');
+			}
+			else{
+				console.assert(false,'?');
 			}
 		}
 		for(let i = 1; i < n_stitches; i++){
-			let bridge = 0;
-			if(state.do == Expanding && ((i == state.l && state.current[i] == state.current[i-1] ) || (i == state.r+1 && state.current[i] == state.current[i-1]))) bridge = 1;
-			if( Math.abs(state.current[i] - state.current[i-1] + bridge) > slack_backward[i]){
+			let slack = Math.max(1, Math.abs((i + offsets[i]) - (i-1 + offsets[i-1])));
+			let sep  = Math.abs(state.current[i] - state.current[i-1]);
+			if(beds[i] == beds[i-1]  && sep > slack){
+				//console.log('stretching too much on the same bed');
 				return false;
 			}
+			if(beds[i] !== beds[i-1]){
+			let back = (beds[i] === 'b' ? state.current[i] : state.current[i-1]);
+			let front = (beds[i] === 'f' ? state.current[i] : state.current[i-1]);
+			let stretch = Math.abs( back + state.rack - front);
+			if( stretch > slack) {
+				//console.log('stretching too much '+stretch.toString()+' between beds at current rack ' + state.rack.toString() + ' slack ' + slack.toString());
+				return false;
+			}
+			}
 		}
+	
+			
 		return true;
 
 	};
 
 	function generate_transfers(path, log=false){
 		// keeping track of multiple transfers, similar to driver
+		//console.log(path);
 		let needles = {};
 		for (let i = 0; i < n_stitches; ++i) {
 			needles['f' + i] = [i];
@@ -104,7 +153,7 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 				}
 				else{
 					let from = needles[e.from_bed+e.from];
-					if(from.length == 0) continue; // empty needle
+					if(!from || from.length == 0) continue; // empty needle
 					xfer(e.from_bed, e.from, e.to_bed, e.to);
 					if (!((e.to_bed + e.to) in needles)) needles[e.to_bed+ e.to] = [];
 					let to = needles[e.to_bed+e.to];
@@ -119,9 +168,44 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 		let p = 0;
 		for(let i = 0; i  < n_stitches; i++){
 			p += Math.abs( state.offsets[i] );
-			
 		}
-		// TODO keep track of firsts
+		if(strict_order ){
+			//TODO ideally maintain this per state so that penalty computation is easier
+			let needles = {};
+			for (let i = 0; i < n_stitches; ++i) {
+				needles['f' + i] = [i];
+			}
+			for(let i = 0; i < state.path.length; i++){
+				let e = state.path[i];
+				if(e){
+					console.assert(e.from_bed == 'f' || e.from_bed == 'b');
+					console.assert(e.to_bed == 'f' || e.to_bed == 'b');
+					
+					let from = needles[e.from_bed+e.from];
+					
+					if(!from || from.length == 0) continue; // empty needle
+					if (!((e.to_bed + e.to) in needles)) needles[e.to_bed+ e.to] = [];
+					let to = needles[e.to_bed+e.to];
+					while(from.length){ to.push(from.pop());}
+
+				
+				}
+			}
+			let invalidFirsts = 0;
+			// note: penalty has to penalize for the number of stacked loops
+			// otherwise might hit a plateau. Not entirely sure if there are no
+			// other situations where we might still hit a plateau, needs a 
+			// case-by-case can always make progress proof
+			for (let i = 0; i < n_stitches; ++i) {
+				var n = needles['f' + (i + offsets[i])];
+				if (firsts[i]) {
+					if ( n  && n.indexOf(i) !== 0) {
+						invalidFirsts += n.length;
+					}
+				}
+			}
+			p += invalidFirsts ;
+		}
 		return p;
 		// something wierd with 1 element arrays and so on 
 		// return state.offsets.reduce(accum_add);
@@ -131,6 +215,7 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 		let s = new_state(state);
 		s.path = [];
 		s.chain = [];
+		s.penalty = penalty(state);
 		visited.add( JSON.stringify(s) );
 	};
 
@@ -138,6 +223,7 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 		let s = new_state(state);
 		s.path = [];
 		s.chain = [];
+		s.penalty = penalty(state);
 		return visited.has( JSON.stringify(s) );
 	};
 	function priority_order(states){
@@ -168,78 +254,64 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 
 		}
 		console.log('\t\t', action[state.do], 'l:', state.l, 'r:', state.r, 'penalty:', penalty(state));
+		
 		generate_transfers(state.path, true);
 	
 		console.log("**************end of chain*****************************");	
 	};
-	function get_racking_range(state){
 
-		let min_l = -max_racking;
-		let max_l =  max_racking;
-		let min_r =  -max_racking;
-		let max_r =  max_racking;
-
-		let alt_min_l = -max_racking;
-		let alt_max_l =  max_racking;
-		let alt_min_r =  -max_racking;
-		let alt_max_r =  max_racking;
-
-
-
-		if(1){
-			//x..x             .x..x..x..x <---front
-			//    \           /
-			//     l..o..o..r              <---back
-			while(alt_min_l <= max_racking && state.l > 0 && (state.current[state.l] + alt_min_l ) < state.current[state.l-1]){
-				alt_min_l++;
-			}
-			while(alt_max_l >= -max_racking && (state.current[state.l]+alt_max_l > state.current[state.r])){
-				alt_max_l--;
-			}
-
-
-			while(alt_min_r <= max_racking && state.current[state.r] + alt_min_r < state.current[state.l]){
-				alt_min_r++;
-			}
-			while(alt_max_r >= -max_racking && (state.r +1 < n_stitches) && (state.current[state.r]+alt_max_r > state.current[state.r+1])){
-				alt_max_r--;
-			}
-		}
-		if(1){
-			if(state.l > 0){
-				let slack_l = Math.max(1, Math.abs(state.l+state.offsets[state.l] - (state.l-1+state.offsets[state.l-1])));
-				min_l = -slack_l -state.current[state.l] + state.current[state.l-1];
-				max_l =  slack_l -state.current[state.l] + state.current[state.l-1];
-
-			}
-			if(state.r+1 < n_stitches){
-				let slack_r = Math.max(1, Math.abs(state.r+1+state.offsets[state.r+1] - (state.r+state.offsets[state.r])));
-				min_r = -slack_r - state.current[state.r] + state.current[state.r+1];
-				max_r =  slack_r - state.current[state.r] + state.current[state.r+1];
-			}
-		}
-		//console.assert(min_l >= -max_racking && min_l <= max_racking, 'min_l in range');
-		//console.assert(min_r >= -max_racking && min_r <= max_racking, 'min_r in range');
-		//console.assert(max_l >= -max_racking && max_l <= max_racking, 'max_l in range');
-		//console.assert(max_r >= -max_racking && max_r <= max_racking, 'max_r in range');
-
-		//console.log('alt ranges', alt_min_l, alt_max_l, alt_min_r, alt_max_r);
-		//console.log('ranges', min_l, max_l, min_r, max_r);
-		//return {'min_l':min_l, 'max_l':max_l, 'min_r':min_r, 'max_r':max_r};
-			return {'min_l':alt_min_l, 'max_l':alt_max_l, 'min_r':alt_min_r, 'max_r':alt_max_r};
-	};
 
 	function okay_to_move_index_by_offset(state, idx, ofs){
-		
+	
+		//console.log('okay to move ', idx, ' by ', ofs, '? curr:', state.current, 'ofs:', state.offsets, 'l', state.l, 'r', state.r);
 		console.assert(idx >= 0 && idx < n_stitches, "idx is not valid");
 		console.assert(state.r >= 0 && state.r < n_stitches, "r is not valid");
 		console.assert(state.l >= 0 && state.l < n_stitches, "l is not valid");
 
+
+		// not causing slack problems  
+		let beds = [];
+		for(let i = 0; i < n_stitches; i++){
+			if( i < state.l){
+				beds.push('f');
+			}
+			else if( i >= state.l && i <= state.r){
+				beds.push('b');
+			}
+			else if(i > state.r){
+				beds.push('f');
+			}
+			else{
+				console.assert(false,'?');
+			}
+		}
+		beds[idx ] = 'f'; // idx will move to the front 
+		if( idx > 0 && beds[idx] !== beds[idx-1]){
+			let back = state.current[idx-1];
+			let front = state.current[idx];
+			let stretch =  Math.abs(back + ofs - front);
+			let slack = Math.max(1, Math.abs(idx + offsets[idx] - (idx-1 + offsets[idx-1])));
+			if( stretch > slack ) return false;
+		}
+		if( idx+1 < n_stitches && beds[idx] !== beds[idx+1]){
+			let back = state.current[idx+1];
+			let front  = state.current[idx];
+
+			let stretch =  Math.abs(back + ofs - front);
+			let slack = Math.max(1, Math.abs(idx + offsets[idx] - (idx-1 + offsets[idx-1])));
+			if( stretch > slack ) return false;
+		}
+
+
+		// not stacking over a stitch that wan'ts to go elsewhere, not tangling
 		let c = state.current[idx]+ ofs;
 		let o = state.offsets[idx]- ofs;
 		for(let i = 0; i < state.l; i++){
 			if(state.current[i] == c && (state.offsets[i]) != (o)){
 				console.assert(i != idx, "shouldn't happen, right?");
+				return false;
+			}
+			if(state.current[i] > c){
 				return false;
 			}
 		}
@@ -248,30 +320,63 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 				console.assert(i != idx, "shouldn't happen, right?");
 				return false;
 			}
+			if(state.current[i] < c ){
+				return false;
+			}
 		}
+
+		// not occupying place when another stitch wan'ts to be there first
+		// this works for many simple cases, but there are cases when multiple 
+		// passes are required such that a first loop has to be placed 
+		// temporarily in the wrong place
+		// TODO perhaps checking conditions only under stacking is what
+		// we need 
+		if(false && strict_order){
+			let indices = [];
+			let f_idx = firsts.indexOf(1);
+			while(f_idx != -1){
+				indices.push(f_idx);
+				f_idx = firsts.indexOf(1,f_idx+1);
+			}
+			// these are all the ids that wan't to be first
+			// if you put yourself at the target of this idx
+			// then return false 
+			for(let j = 0; j < indices.length; j++){
+				let j_idx = indices[j];
+				if(j_idx == idx) continue;
+				
+				let j_wants_to_be_there_first = (state.current[j_idx]+state.offsets[j_idx] == c);
+				let j_is_not_there = ( j_idx >= state.l && j_idx <= state.r ) || (state.offsets[j_idx] != 0 && (j < state.l || j > state.r));
+				let i_is_where_j_is = (state.current[j_idx] == state.current[idx]);
+				//console.log( j_idx, ' wants to be there: ', j_wants_to_be_there_first, ' but is not there ', j_is_not_there, ' but is over i ', i_is_where_j_is);
+				if( j_is_not_there && j_wants_to_be_there_first && !i_is_where_j_is) return false;
+			}
+		
+		}
+
 		return true;
 	
 	};
 
 	function print_state(state){
 		console.log('*******************************');
-		console.log('\t\tl:',state.l,'r:',state.r,' do:', action[state.do]);
+		console.log('\t\tl:',state.l,'r:',state.r,' do:', action[state.do], 'at rack:', state.rack);
 		for(let i = 0; 	i < n_stitches; i++){
-			console.log('stitch ' + i.toString() + ' is at ' + (state.current[i]).toString()+ ' wants  offset ' + (state.offsets[i]).toString() + ' (with forward slack ' + slack_forward[i].toString() + ' and backward slack ' + slack_backward[i].toString()+ ' and penalty '+ penalty(state).toString() +')');
+			console.log('stitch ' + i.toString() + ' is at ' + (state.current[i]).toString()+ ' wants  offset ' + (state.offsets[i]).toString()+(firsts[i]?'*':'') + ' (with forward slack ' + slack_forward[i].toString() + ' and backward slack ' + slack_backward[i].toString()+ ' and penalty '+ penalty(state).toString() +')');
 		}
 		
 		console.log('*******************************');
 	};
 
 	let States = new Array();
-	let first_state = {'current': current.slice(), 'prev': current.slice(), 'offsets':offsets.slice(),'do':StretchToBack, 'path':new Array(), 'l':0, 'r': n_stitches-1, 'chain':new Array()};
+	let first_state = {'current': current.slice(), 'prev': current.slice(), 'offsets':offsets.slice(),'do':StretchToBack, 'path':new Array(), 'l':0, 'r': n_stitches-1, 'chain':new Array(), 'rack':0};
 	
 	States.push(first_state);
 
+	let last_penalty = Infinity;
 
 	while( States.length ){
 	
-		//console.log('States:', States.length);
 	
 		let s = priority_order(States).pop(); 
 		if(has_state(s)){
@@ -284,6 +389,12 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 			continue;
 		}
 		visit_state(s);
+		process.stdout.write("\r"+action[s.do]+"\t\t\t");
+
+		if(s.do === StretchToBack){
+			console.assert(penalty(s) < last_penalty, 'penalty should decrease');
+			last_penalty = penalty(s);
+		}
 
 		if(verbose){
 		console.log('\x1b[1m');
@@ -293,10 +404,16 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 
 		console.assert( state_respects_slack(s), 'all accepted states must respect slack');	
 		if( penalty(s)  === 0 && s.do === StretchToBack){
-			//console.log('done', penalty(s));
+			console.log('done', penalty(s));
 			//if done on a collapsed state, follow up with one round of stretch to front
 			console.log('final state:');
 			print_state(s);
+			console.log('target', target);
+			console.log('current',s.current);
+			console.log('offsets', s.offsets);
+			console.log('prev', s.prev);
+			console.log('firsts', firsts);
+
 			generate_transfers(s.path);
 			
 			return;
@@ -310,9 +427,11 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 			// TODO add a min-max needle range
 			for(let r  = -max_racking; r <= max_racking; r++){
 				let ss = new_state(s);
-				
 				for(let i = 0; i < n_stitches; i++){
+					console.assert(ss.current[i] !== undefined, "from is well defined(stretch)");
+					console.assert(ss.current[i]-r !== undefined, "to is well defined(stretch)");
 					ss.path.push({'from_bed':'f', 'from':ss.current[i], 'to_bed':'b', to:ss.current[i]-r});
+				
 					ss.current[i] -= r;
 					ss.offsets[i] += r;
 				}
@@ -320,7 +439,8 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 				ss.prev = ss.current.slice();
 				ss.l = 0;
 				ss.r = n_stitches-1;
-				if( state_respects_slack(ss) && penalty(ss) <= penalty(s) && !has_state(ss)){
+				ss.rack = 0; // at the end of this operation, rack can be reset
+				if( state_respects_slack(ss) /*&& penalty(ss) <= last_penalty*/ && !has_state(ss)){
 					States.push(ss);
 				}
 				
@@ -331,39 +451,41 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 	
 			//console.log('\t\t\tExpanding state.. l:' + ( s.l ).toString() + ' r: '+ ( s.r).toString());
 			console.assert(s.l <= s.r, 'l<=r, for all expanding states');
-			let ranges = get_racking_range(s);
-			let min_l = ranges.min_l;
-			let min_r = ranges.min_r;
-			let max_l = ranges.max_l;
-			let max_r = ranges.max_r;
+			let min_l = -max_racking;
+			let min_r = -max_racking;
+			let max_l = max_racking;
+			let max_r = max_racking;
 			// Find the next legal state(s) to move s.l 
 			{
 
-				let o = s.offsets[s.l];
-				let n = s.current[s.l];
-				
-				
+				let n = s.current[s.l];	
 				//console.log('\t\t ** Moving l in range ', min_l, max_l);
 				// go through each offset
 				for(let o = min_l; o <= max_l; o++){
 
-					if( (s.l== 0 || Math.abs(n + o - s.current[s.l-1]) <= slack_backward[s.l]) &&
-						(s.l==n_stitches-1 || Math.abs(n + o - s.current[s.l+1]) <= slack_forward[s.l]) ){
+					//console.log('attempting to move by', o);
+					{
 
 						if( okay_to_move_index_by_offset(s, s.l, o)){
 							// launch a new version 
 							let next = new_state(s);
+
+							next.rack = o;
+							if( !state_respects_slack(next)) continue;
+							{
+								next.path.push({'from_bed':'b', 'from':next.current[next.l],'to_bed':'f',to:next.current[next.l]+o});
+							}
 							next.current[next.l] += o;
 							next.offsets[next.l] -= o;
-							//console.log('(L)Found offset ' + o.toString() + ' that works.');
-							//console.log('\t l:', next.l,'current', next.current[next.l],'offset', next.offsets[next.l]);
-
-
+						//	console.log('(L)Found offset ' + o.toString() + ' that works.');
+						//	console.log('\t l:', next.l,'current', next.current[next.l],'offset', next.offsets[next.l]);
+							
 
 							if(next.l < next.r){
 								next.l++;
 								next.do = Expanding;
-								if(!has_state(next) && penalty(next) <= penalty(s)){
+								
+								if(!has_state(next) /*&& penalty(next) <= last_penalty*/ && state_respects_slack(next)){
 									States.push(next);
 									//console.log('\t adding next l ('+next.l.toString()+')');
 								}
@@ -372,7 +494,7 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 								next.do = ExpandToFront;
 								next.l = 0;
 								next.r = n_stitches-1;
-								if(!has_state(next) && penalty(next) <= penalty(s)){
+								if(!has_state(next) /*&& penalty(next) <= last_penalty*/ && state_respects_slack(next)){
 									States.push(next);
 									//console.log('\t adding next(l) for expansion');
 								}
@@ -388,38 +510,42 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 
 			// Find the next legal state(s) to move s.r 
 			{
-				let o = s.offsets[s.r];
 				let n = s.current[s.r];
 			
-				//console.log('\t\t ** Moving r in range ', min_r, max_r);
+				//console.log('\n\t\t ** Moving r in range \n', min_r, max_r);
 
 				// go through each offset
 				for(let o = min_r; o <= max_r; o++){
 
-					if( (s.r== 0 || Math.abs(n + o - s.current[s.r-1]) <= slack_backward[s.r]) &&
-						(s.r==n_stitches-1 || Math.abs(n + o - s.current[s.r+1]) <= slack_forward[s.r]) ){
+					//console.log('attempting to move by', o);
+					{
 
 						if( okay_to_move_index_by_offset(s, s.r, o)){
 							// launch a new version 
 							let next = new_state(s);
+							next.rack = o;
+							if(!state_respects_slack(next)) continue;
+							{
+								next.path.push({'from_bed':'b', 'from':next.current[next.r],'to_bed':'f',to:next.current[next.r]+o});
+							}
+							
 							next.current[next.r] += o;
 							next.offsets[next.r] -= o;
 							//console.log('(R)Found offset ' + o.toString() + ' that works.');
 							//console.log('\t r', next.r,'current', next.current[next.r],'offset', next.offsets[next.r]);
 
-
 							if(next.r > next.l){
 								next.r--;
-								if(!has_state(next) && penalty(next) <= penalty(s)){
+								if(!has_state(next) /*&& penalty(next) <= last_penalty*/ && state_respects_slack(next)){
 									States.push(next);
 									//console.log('\t addng next r ('+next.r.toString()+')');
 								}
 							}
-							else if(next.r == next.l && penalty(next) <= penalty(s)){
+							else if(next.r == next.l /*&& penalty(next) <= last_penalty*/){
 								next.do = ExpandToFront;
 								next.l = 0;
 								next.r = n_stitches-1;
-								if(!has_state(next))
+								if(!has_state(next) && state_respects_slack(next))
 								{
 									States.push(next);
 									//console.log('\t adding next(r) for expansion');
@@ -433,9 +559,6 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 				}
 			}
 
-
-			
-		
 		}
 		else if(s.do === ExpandToFront){ // if collapsed state expand to front
 			//console.log('\t\tExpand state to front', s.prev, s.current, s.offsets);
@@ -443,14 +566,21 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 			
 			// expanding has already done all the work, so this is trivial 
 			// assuming prev was not clobbered by anything (it shouldn't be)
-			//console.assert( ss.l >= ss.r , 'intermediate states were fully expanded');	
+			// but also need to do this in order
 		
-			ss.do = StretchToBack;			
-			for(let i = 0;  i < n_stitches; i++){
-				ss.path.push({'from_bed':'b','from':ss.prev[i],'to_bed':'f',to:ss.current[i]});
+			ss.do = StretchToBack;		
+			// possibly figure out if fewer passes are possible 
+			if(false )
+			{
+				for(let i = n_stitches-1;  i >= 0; i--){
+					console.assert(ss.prev[i] !== undefined, "from is well defined");
+					console.assert(ss.current[i] !== undefined, "to is well defined");
+					ss.path.push({'from_bed':'b','from':ss.prev[i],'to_bed':'f',to:ss.current[i]});
+				}
 			}
+			ss.rack = 0; // at the end of this operation rack can be reset
 			console.assert( state_respects_slack(ss) , 'this should be slack friendly, right?');
-			if( penalty(ss) <= penalty(s) && !has_state(ss)){
+			if( penalty(ss) < last_penalty && !has_state(ss)){
 				States.push(ss);
 			}
 
@@ -458,7 +588,10 @@ function cse_transfers(offsets, firsts, xfer, max_racking = 3) {
 	}//while-states
 
 	// if we reached here, we did not find any valid state -- should not happen 
-	
+	console.log('source ',current);
+	console.log('target ',target);
+	console.log('offsets', offsets);
+	console.log('firsts ', firsts);
 	console.assert(false, 'no valid stretch expand strategy worked?!');
 }
 
@@ -469,217 +602,95 @@ exports.cse_transfers = cse_transfers;
 //testing code:
 
 if (require.main === module) {
-	console.log("Doing some test flat transfers.");
-	function test(offsets, firsts) {
-		let needles = {};
-		for (let i = 0; i < offsets.length; ++i) {
-			needles['f' + i] = [i];
-		}
+	console.log("Doing some test collapse-stretch-expand transfers.");
+	
+	const testDriver = require('./test-driver.js');
+	function _cse_transfers(offsets, firsts, orders, limit, xfer){
+		console.log("\x1b[32mTesting:");
+		console.log("Offsets", offsets);
+		console.log("\x1b[0m");	
+		let options = {ignoreFirsts:true};
+		cse_transfers(offsets, firsts, xfer, options);
+	}
+	/*
+	if (process.argv.length > 2){
+		testDriver.runTests(_cse_transfers, { skipCables:true , ignoreFirsts:true, ignoreStacks:true});
+		return;
+	}*/
 
-		function dumpNeedles() {
-			let minNeedle = 0;
-			let maxNeedle = offsets.length-1;
-			for (let n in needles) {
-				let m = n.match(/^[fb](-?\d+)$/);
-				console.assert(m);
-				let val = parseInt(m[1]);
-				minNeedle = Math.min(minNeedle, val);
-				maxNeedle = Math.max(maxNeedle, val);
-			}
-
-			let layers = [];
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if (('b' + n) in needles) {
-					needles['b' + n].forEach(function(i, d){
-						while (d >= layers.length) layers.push("");
-						while (layers[d].length < n * 3) layers[d] += "   ";
-						layers[d] += " ";
-						if (i < 10) layers[d] += " " + i;
-						else layers[d] += i;
-					});
-				}
-			}
-			for (let l = layers.length - 1; l >= 0; --l) {
-				console.log(" back:" + layers[l]);
-			}
-			layers = [];
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if (('f' + n) in needles) {
-					needles['f' + n].forEach(function(i, d){
-						while (d >= layers.length) layers.push("");
-						while (layers[d].length < n * 3) layers[d] += "   ";
-						layers[d] += " ";
-						if (i < 10) layers[d] += " " + i;
-						else layers[d] += i;
-					});
-				}
-			}
-			for (let l = layers.length - 1; l >= 0; --l) {
-				console.log("front:" + layers[l]);
-			}
-
-			let infoI = "";
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if      (n < -10) infoI += n.toString();
-				else if (n <   0) infoI += " " + n.toString();
-				else if (n === 0) infoI += "  0";
-				else if (n <  10) infoI += "  " + n.toString();
-				else              infoI += " " + n.toString();
-			}
-			console.log("index:" + infoI);
-		}
-		let log = [];
-
-		function xfer(fromBed, fromIndex, toBed, toIndex) {
-			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
-			console.log(cmd);
-			log.push(cmd);
-
-			console.assert((fromBed === 'f' && toBed === 'b') || (fromBed === 'b' && toBed === 'f'), "must xfer f <=> b");
-
-			//check for valid racking:
-			let at = [];
-			for (let i = 0; i < offsets.length; ++i) {
-				at.push(null);
-			}
-			for (var n in needles) {
-				let m = n.match(/^([fb])(-?\d+)$/);
-				console.assert(m);
-				needles[n].forEach(function(s){
-					console.assert(at[s] === null, "each stitch can only be in one place");
-					at[s] = {bed:m[1], needle:parseInt(m[2])};
-				});
-			}
-
-			let minRacking = -Infinity;
-			let maxRacking = Infinity;
-			for (let i = 1; i < offsets.length; ++i) {
-				if (at[i-1].bed === at[i].bed) continue;
-				let slack = Math.max(1, Math.abs( i+offsets[i] - (i-1+offsets[i-1]) ));
-				let back  = (at[i].bed === 'b' ? at[i].needle : at[i-1].needle);
-				let front = (at[i].bed === 'b' ? at[i-1].needle : at[i].needle);
-
-				//-slack <= back + racking - front <= slack
-				minRacking = Math.max(minRacking, -slack - back + front);
-				maxRacking = Math.min(maxRacking,  slack - back + front);
-			}
-			console.assert(minRacking <= maxRacking, "there is a valid racking for this stitch configuration");
-			let racking = (fromBed === 'f' ? fromIndex - toIndex : toIndex - fromIndex);
-			console.assert(minRacking <= racking && racking <= maxRacking, "required racking " + racking + " is outside [" + minRacking + ", " + maxRacking + "] valid range. (" + cmd + ")");
-
-
-			var from = needles[fromBed + fromIndex];
-			if (!((toBed + toIndex) in needles)) needles[toBed + toIndex] = [];
-			var to = needles[toBed + toIndex];
-
-			if(from.length == 0)
-				console.assert(from.length !== 0, "no reason to xfer empty needle");
-			if(from.length > 1)
-				console.warn("shouldn't xfer stack though cse can't guarantee");
-
-			while (from.length) to.push(from.pop());
-
-			//dumpNeedles(); //DEBUG
-		}
-
-		let infoI = "";
-		let infoO = "";
-		let infoF = "";
-		for (let i = 0; i < offsets.length; ++i) {
-			infoI += " ";
-			infoO += " ";
-			infoF += " ";
-
-			if (i < 10) infoI += " " + i;
-			else infoI += i;
-
-			if (offsets[i] < 0) infoO += offsets[i];
-			else if (offsets[i] > 0) infoO += "+" + offsets[i];
-			else infoO += " 0";
-
-			if (firsts[i]) {
-				infoF += " *";
-			} else {
-				infoF += " .";
-			}
-		}
-		console.log(" index:" + infoI);
-		console.log("offset:" + infoO);
-		console.log(" first:" + infoF);
-
-		cse_transfers(offsets, firsts, xfer);
-
-		dumpNeedles();
-
-		for (let i = 0; i < offsets.length; ++i) {
-			var n = needles['f' + (i + offsets[i])];
-			console.assert(n.indexOf(i) !== -1, "needle got to destination");
-			if (firsts[i]) {
-				console.warn(n.indexOf(i) === 0, "first got to destination first");
-			}
-		}
-
-		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
-
-		return log;
-
+	function test(offsets, firsts){
+		let orders = [];
+		while( orders.length < offsets.length) orders.push(0);
+		let limit = 1;
+		let options = {ignoreFirsts:true, ignoreStacks:true};
+		testDriver.test(_cse_transfers, offsets, firsts, orders, limit, options);
 	}
 
-	test([1, 20],
-		  [0, 0]);
+// cases that work
+if(1){	
+	test([1,1],[0,0]);
 
-	test([ -1,+2, -1],
-		[ 0, 0, 0]);
+	test([-1,+0, +1],
+		[ 0, 0,  0]);
 
-	test([+1,+1,+2,+2],
-	     [ 0, 0, 0, 0]);
+	test([1,0,-1],
+		[0,0,0]);
 
-	test([+1,+1,+1,+1,+1,+1,+1,+1],
-	     [ 0, 0, 0, 0, 0, 0, 0, 0]);
+	test([-2,-2,0,0],
+		[0,0,0,0]);
 	
+	test([1, 20],
+		[0, 0]);
+	
+	test([+1,+1,+1,+1,+1,+1,+1,+1],
+		[ 0, 0, 0, 0, 0, 0, 0, 0]);
 
 	test([-3,-2,-2,-2,-2,-2,-2,-2],
-	     [ 0, 0, 0, 0, 0, 0, 0, 0]);
-
+		[ 0, 0, 0, 0, 0, 0, 0, 0]);
 
 	test([+1,+1,+2,+2,+3,+3,+2,+1],
-	     [ 0, 0, 0, 0, 0, 0, 0, 0]);
+		[0,0,0,0,0,0,0,0]);
+
+	test([+1,+2,+1,+2],
+		[ 0, 0, 1, 0]);
+
+	test([ +1,+0,-1],
+		[  0, 1, 0]);
 	
-
-
-	test([ 1, 0,+1,+1,+2,+2,+1,+1, 0, 0,+1, 0],
-	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
-
+	test([  0, 0,-1, 0,-1, 0,-1],
+		[   1, 0, 0, 1, 0, 0, 1]);
 	
-	test([-2,-2,0,0],
-		 [0,0,0,0]);
-
-	test([+4,+4,+3,+3,+2,+2,+1,+1, 0,-1,-1,-2,-2,-3,-3],
-	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
-
-	test([ -1,-1, 0, 1, 1, 1],
-	     [  0, 0, 0, 0, 0, 1]);
-
-	test([+1,+2,+3,+3,+2,+2,+1,+1],
-	     [ 0, 0, 0, 0, 1, 1, 0, 0]);
-	test([-1,-1,-2,-2,-3,-3,-2,-1],
-	     [ 0, 0, 1, 1, 0, 0, 0, 0]);
+	test([ -1,-1,-2,-2,-3],
+		[   0, 1, 0, 0, 1]);
 	
-	
-	test([-1,+0, +1],
-	     [ 0, 0,  0]);
-	
-	test([-8,-4,-3,-3,-2,-2,-1,-1, 0,+1,+1,+2,+2,+3,+3],
-	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
-	test([ 1, 0, 1, 0, 1, 0, 0,-1, 0,-1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1],
-	     [ 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]);
-
-	test([-4,-3,-2,-1, 0,+1,+2,+3],
-		[ 0, 0, 0, 0, 0, 0, 1, 0]);
-
 	test([-1,-1,-2,-2,-3,-3,-2,-1],
 		[ 0, 0, 1, 1, 0, 0, 0, 0]);
+	
+	//work but currently slow-with-firsts
+	test([ 1, 0,+1,+1,+2,+2,+1,+1, 0, 0,+1, 0],
+		[ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
+	
+	test([-8,-4,-3,-3,-2,-2,-1,-1, 0,+1,+1,+2,+2,+3,+3],
+		[ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
 
+	test([+1,+2,+3,+3,+2,+2,+1,+1],
+		[ 0, 0, 0, 0, 1, 1, 0, 0]);
+	
+	test([-1,-1,-2,-2,-3,-3,-2,-1],
+		[ 0, 0, 1, 1, 0, 0, 0, 0]);
+	
 	test([+1,+1,+2,+2,+3,+3,+2,+1],
-		[0,0,0,0,0,0,0,0],4);
+		[ 0, 1, 0, 0, 0, 0, 1, 0]);
+	
+	test([-4,-3,-2,-1, 0,+1,+2,+3],
+		[ 0, 0, 0, 0, 0, 0, 1, 0]);
+	
+	test([ -1,-1, 0, 1, 1, 1],
+		[  0, 0, 0, 0, 0, 1]);
+	
+	test([ -3,-2,-1],
+		[  1, 0, 0]);
+}
+
+
 }
