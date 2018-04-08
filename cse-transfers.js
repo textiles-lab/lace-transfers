@@ -595,7 +595,7 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 
 
 			// Find the next legal state(s) to move s.r 
-			{
+			if(0){
 				let n = s.current[s.r];
 			
 				//console.log('\n\t\t ** Moving r in range \n', min_r, max_r);
