@@ -362,14 +362,14 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 		beds[idx ] = 'f'; // idx will move to the front 
 		if( idx > 0 && beds[idx] !== beds[idx-1]){
 			let back = state.current[idx-1];
-			let front = state.current[idx];
+			let front = state.current[idx] + ofs;
 			let stretch =  Math.abs(back + ofs - front);
 			let slack = Math.max(1, Math.abs(idx + offsets[idx] - (idx-1 + offsets[idx-1])));
 			if( stretch > slack ) return false;
 		}
 		if( idx+1 < n_stitches && beds[idx] !== beds[idx+1]){
 			let back = state.current[idx+1];
-			let front  = state.current[idx];
+			let front  = state.current[idx] + ofs;
 
 			let stretch =  Math.abs(back + ofs - front);
 			let slack = Math.max(1, Math.abs(idx + offsets[idx] - (idx+1 + offsets[idx+1])));
@@ -480,7 +480,7 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 		}
 
 		console.assert( state_respects_slack(s), 'all accepted states must respect slack');	
-		if( penalty(s)  === 0 && s.do === StretchToBack){
+		if( penalty(s)  === 0 /*&& s.do === StretchToBack*/){
 			console.log('done', penalty(s));
 			//if done on a collapsed state, follow up with one round of stretch to front
 			/*
@@ -492,6 +492,11 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 			console.log('prev', s.prev);
 			console.log('firsts', firsts);
 			*/
+			if(s.do === Expanding ){
+				for(let i = s.l; i <= s.r; i++){
+					s.path.push({'from_bed':'b', 'from':s.current[i],'to_bed':'f',to:s.current[i]});
+				}
+			}
 			generate_transfers(s.path);
 			
 			return;
