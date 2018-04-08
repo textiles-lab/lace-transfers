@@ -32,6 +32,80 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 	const action = ['Expanding......',
 					'Stretch-to-back',
 					'Expand-to-front'];
+	
+
+	// priority queue---
+
+	const top = 0;
+	const parent = i => ((i + 1) >>> 1) - 1;
+	const left = i => (i << 1) + 1;
+	const right = i => (i + 1) << 1;
+
+	//from stack-oveflow (but maybe this wasn't really necessary)
+	class PriorityQueue {
+		constructor(comparator = (a, b) => a > b) {
+			this._heap = [];
+			this._comparator = comparator;
+		}
+		size() {
+			return this._heap.length;
+		}
+		isEmpty() {
+			return this.size() == 0;
+		}
+		peek() {
+			return this._heap[top];
+		}
+		push(...values) {
+			values.forEach(value => {
+				this._heap.push(value);
+				this._siftUp();
+			});
+			return this.size();
+		}
+		pop() {
+			const poppedValue = this.peek();
+			const bottom = this.size() - 1;
+			if (bottom > top) {
+				this._swap(top, bottom);
+			}
+			this._heap.pop();
+			this._siftDown();
+			return poppedValue;
+		}
+		replace(value) {
+			const replacedValue = this.peek();
+			this._heap[top] = value;
+			this._siftDown();
+			return replacedValue;
+		}
+		_greater(i, j) {
+			return this._comparator(this._heap[i], this._heap[j]);
+		}
+		_swap(i, j) {
+			[this._heap[i], this._heap[j]] = [this._heap[j], this._heap[i]];
+		}
+		_siftUp() {
+			let node = this.size() - 1;
+			while (node > top && this._greater(node, parent(node))) {
+				this._swap(node, parent(node));
+				node = parent(node);
+			}
+		}
+		_siftDown() {
+			let node = top;
+			while (
+				(left(node) < this.size() && this._greater(left(node), node)) ||
+				(right(node) < this.size() && this._greater(right(node), node))
+			) {
+				let maxChild = (right(node) < this.size() && this._greater(right(node), left(node))) ? right(node) : left(node);
+				this._swap(node, maxChild);
+				node = maxChild;
+			}
+		}
+	}
+
+
 	let n_stitches = offsets.length;
 	let slack_forward = new Array(n_stitches).fill(max_racking);
 	let slack_backward = new Array(n_stitches).fill(max_racking);
@@ -368,17 +442,20 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 		console.log('*******************************');
 	};
 
-	let States = new Array();
+	let PQ = new PriorityQueue((a, b) => (penalty(a)===penalty(b) ? ( a.path.length===b.path.length? a.r-a.l > b.r-b.l : a.path.length < b.path.length) : penalty(a) < penalty(b)));
+
+	//let States = new Array();
 	let first_state = {'current': current.slice(), 'prev': current.slice(), 'offsets':offsets.slice(),'do':StretchToBack, 'path':new Array(), 'l':0, 'r': n_stitches-1, 'chain':new Array(), 'rack':0};
 	
-	States.push(first_state);
+	//States.push(first_state);
+	PQ.push(first_state);
 
 	let last_penalty = Infinity;
 
-	while( States.length ){
+	while( !PQ.isEmpty() /*States.length*/ ){
 	
 	
-		let s = priority_order(States).pop(); 
+		let s = PQ.pop();//priority_order(States).pop(); 
 		if(has_state(s)){
 			if(verbose){
 			console.log('\x1b[33m');
@@ -442,7 +519,8 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 				ss.r = n_stitches-1;
 				ss.rack = 0; // at the end of this operation, rack can be reset
 				if( state_respects_slack(ss) /*&& penalty(ss) <= last_penalty*/ && !has_state(ss)){
-					States.push(ss);
+					//States.push(ss);
+					PQ.push(ss);
 				}
 				
 
@@ -487,7 +565,8 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 								next.do = Expanding;
 								
 								if(!has_state(next) /*&& penalty(next) <= last_penalty*/ && state_respects_slack(next)){
-									States.push(next);
+									PQ.push(next);
+									//States.push(next);
 									//console.log('\t adding next l ('+next.l.toString()+')');
 								}
 							}
@@ -496,7 +575,8 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 								next.l = 0;
 								next.r = n_stitches-1;
 								if(!has_state(next) /*&& penalty(next) <= last_penalty*/ && state_respects_slack(next)){
-									States.push(next);
+									PQ.push(next);
+									//States.push(next);
 									//console.log('\t adding next(l) for expansion');
 								}
 
@@ -538,7 +618,8 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 							if(next.r > next.l){
 								next.r--;
 								if(!has_state(next) /*&& penalty(next) <= last_penalty*/ && state_respects_slack(next)){
-									States.push(next);
+									PQ.push(next);
+									//States.push(next);
 									//console.log('\t addng next r ('+next.r.toString()+')');
 								}
 							}
@@ -548,7 +629,8 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 								next.r = n_stitches-1;
 								if(!has_state(next) && state_respects_slack(next))
 								{
-									States.push(next);
+									PQ.push(next);
+									//States.push(next);
 									//console.log('\t adding next(r) for expansion');
 								}
 
@@ -582,7 +664,8 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 			ss.rack = 0; // at the end of this operation rack can be reset
 			console.assert( state_respects_slack(ss) , 'this should be slack friendly, right?');
 			if( penalty(ss) < last_penalty && !has_state(ss)){
-				States.push(ss);
+				PQ.push(ss);
+				//States.push(ss);
 			}
 
 		}
