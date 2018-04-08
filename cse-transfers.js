@@ -24,7 +24,7 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 	//assumes everything is on the front bed to begin with,
 	//and wants to be at offsets on the front bed as well
 	let verbose = false;
-	let strict_order = !Boolean(options.ignoreFirsts);
+	let strict_order = false;// !Boolean(options.ignoreFirsts);
 	
 	const Expanding = 0;
 	const StretchToBack = 1;
@@ -298,7 +298,7 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 			let front  = state.current[idx];
 
 			let stretch =  Math.abs(back + ofs - front);
-			let slack = Math.max(1, Math.abs(idx + offsets[idx] - (idx-1 + offsets[idx-1])));
+			let slack = Math.max(1, Math.abs(idx + offsets[idx] - (idx+1 + offsets[idx+1])));
 			if( stretch > slack ) return false;
 		}
 
@@ -406,6 +406,7 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 		if( penalty(s)  === 0 && s.do === StretchToBack){
 			console.log('done', penalty(s));
 			//if done on a collapsed state, follow up with one round of stretch to front
+			/*
 			console.log('final state:');
 			print_state(s);
 			console.log('target', target);
@@ -413,7 +414,7 @@ function cse_transfers(offsets, firsts, xfer, options, max_racking = 3) {
 			console.log('offsets', s.offsets);
 			console.log('prev', s.prev);
 			console.log('firsts', firsts);
-
+			*/
 			generate_transfers(s.path);
 			
 			return;
@@ -606,17 +607,17 @@ if (require.main === module) {
 	
 	const testDriver = require('./test-driver.js');
 	function _cse_transfers(offsets, firsts, orders, limit, xfer){
-		console.log("\x1b[32mTesting:");
-		console.log("Offsets", offsets);
-		console.log("\x1b[0m");	
+		//console.log("\x1b[32mTesting:");
+		//console.log("Offsets", offsets);
+		//console.log("\x1b[0m");	
 		let options = {ignoreFirsts:true};
 		cse_transfers(offsets, firsts, xfer, options);
 	}
-	/*
+	
 	if (process.argv.length > 2){
-		testDriver.runTests(_cse_transfers, { skipCables:true , ignoreFirsts:true, ignoreStacks:true});
+		testDriver.runTests(_cse_transfers, { 'skipCables':true , 'ignoreFirsts':true, 'ignoreStacks':true});
 		return;
-	}*/
+	}
 
 	function test(offsets, firsts){
 		let orders = [];
