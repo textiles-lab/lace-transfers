@@ -5,9 +5,10 @@
 #include <queue>
 #include <set>
 #include <map>
+#include <fstream>
 #include <assert.h>
 
-#define n_stitches 6
+#define n_stitches 3
 #define n_rack     4 
 #define Back_Bed  'b'
 #define Front_Bed 'f'
@@ -27,7 +28,7 @@ bool cse( std::vector<int> offsets, std::vector<int8_t> firsts, std::vector< std
 	return false;
 }
 
-bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
+bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::string outfile="out.xfers"){
 
 	assert( offsets.size() == firsts.size() && " offsets and firsts must have the same size " );
 	assert( offsets.size() == n_stitches && " number of stitches is fixed " );
@@ -245,6 +246,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 			std::cout<<"\t\t\t\ttangling with next  " <<idx << " and " << next << std::endl;
 			return false;
 		}
+
+
+		// TODO overlapping loops have same destination
+
 		return true;
 		
 	};
@@ -268,6 +273,8 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 	
 	std::priority_queue< State, std::vector<State>, LessThanByPenalty > PQ;
 	std::vector<State> successes;
+	State best_state;
+	int best_cost = INT32_MAX;
 
 	State first;
 	first.offsets = offsets;
@@ -317,6 +324,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 		if( Reached(st) ){
 			int p = Passes(st.xfers);
 			std::cout<<"Found a solution that needs " << p  <<" passes."<< std::endl;
+			if ( p < best_cost ){
+				best_cost = p;
+				best_state = st;
+			}
 			successes.push_back(st);
 			if( p < upper_bound_passes){
 				upper_bound_passes = p;
@@ -372,15 +383,39 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 		std::cout<<"Solution " << i << "\n" << Passes(successes[i].xfers, true) << std::endl;
 	}
 
+	// return a string 
+	std::ofstream out(outfile);
+	for(auto x : best_state.xfers){
+		
+		out<<Bed(x.first)<<Needle(x.first)<<" "<<Bed(x.second)<<Needle(x.second)<<"\n";
+
+	}
+	out.close();
 	return true;
 }
 
 
 
 int main(int argc, char* argv[]){
-
-	exhaustive( {-2,-1, 2, 3, 2, 1}, {0, 0, 0, 0, 0, 0} );	
-
+	std::cout<<"argc = " << argc<<std::endl;
+	if(argc == 1 + 2*n_stitches +1){
+		 
+		std::vector<int> offsets;
+		std::vector<int8_t>firsts;
+		for(int i = 1; i < 1 + n_stitches; i++){
+			offsets.push_back( atoi(argv[i]) );
+		}
+		for(int i = 1 + n_stitches; i < 1 +2*n_stitches; i++){
+			firsts.push_back( (int8_t)atoi(argv[i]) );
+		}
+		
+		return exhaustive(offsets, firsts, argv[1+2*n_stitches]);
+	}
+	
+	if(argc < 2){	
+		
+		exhaustive( {-1,-0, 1}, {0, 0, 0} );	
+	}
 
 	return 0;
 
