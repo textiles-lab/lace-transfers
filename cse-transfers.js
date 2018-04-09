@@ -703,7 +703,7 @@ if (require.main === module) {
 	}
 	
 	if (process.argv.length > 2){
-		testDriver.runTests(_cse_transfers, { 'skipCables':true , 'ignoreFirsts':true, 'ignoreStacks':true});
+		testDriver.runTests(_cse_transfers, { 'skipCables':true , 'ignoreFirsts':true, 'ignoreStacks':true, 'outDir':'results/cse'});
 		return;
 	}
 
