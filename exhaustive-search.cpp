@@ -9,7 +9,7 @@
 #include <assert.h>
 
 #define n_stitches 3
-#define n_rack     4 
+#define n_rack     8 
 #define Back_Bed  'b'
 #define Front_Bed 'f'
 
@@ -249,7 +249,9 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 
 
 		// TODO overlapping loops have same destination
-
+		for(int i = 0; i < n_stitches; i++){
+			if( t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx] && t.offsets[i] != t.offsets[idx]) return false;
+		}
 		return true;
 		
 	};
@@ -397,6 +399,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 
 
 int main(int argc, char* argv[]){
+
 	std::cout<<"argc = " << argc<<std::endl;
 	if(argc == 1 + 2*n_stitches +1){
 		 
