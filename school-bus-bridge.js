@@ -13,11 +13,7 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 	}
 
 
-	for (let i = 0; i < offsets.length; ++i) {
-		xfer('f', i, 'b', i-currentOffset);
-		on_front[i] = false;
-	}
-
+	
 	function min_to_max_pass(goal, startOffset) {
 		print_goal(goal, firsts);
 		while (currentOffset < maxRacking) {
@@ -50,11 +46,18 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 	}
 
 	var increasing = true;
-	currentOffset = increasing ? (minRacking-1) : (maxRacking+1); //for the very first pass, everything has to go to the back bed
+	
 	var tempGoal = increasing ? make_right_leaning_decreases(offsets, firsts) : make_left_leaning_decreases(offsets, firsts);
 	console.log("result of processing");
 	print_goal(tempGoal, firsts);
-	increasing ? min_to_max_pass(tempGoal, 0, minRacking) : max_to_min_pass(tempGoal, 0, maxRacking);
+	if (!is_done(tempGoal)){
+		for (let i = 0; i < offsets.length; ++i) {
+			xfer('f', i, 'b', i-currentOffset);
+			on_front[i] = false;
+		}
+		currentOffset = increasing ? (minRacking-1) : (maxRacking+1); //for the very first pass, everything has to go to the back bed
+		increasing ? min_to_max_pass(tempGoal, 0, minRacking) : max_to_min_pass(tempGoal, 0, maxRacking);
+	}
 	var middleGoal = Array.from(offsets, (x,i) => x - tempGoal[i]);
 	console.log("result after running processing");
 	print_goal(middleGoal, firsts);
@@ -64,16 +67,18 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 		console.log("result of processing");
 		print_goal(tempGoal, firsts);
 		
-		currentOffset = 0;
-		for (let i=0; i < offsets.length; ++i) {
-			//if (tempGoal[i] != 0) {
-				xfer('f', needle_pos[i], 'b', needle_pos[i]-currentOffset);
-				on_front[i] = false;
-				needle_pos[i] = needle_pos[i] - currentOffset;
-			//}
+		if (!is_done(tempGoal)){
+			currentOffset = 0;
+			for (let i=0; i < offsets.length; ++i) {
+				//if (tempGoal[i] != 0) {
+					xfer('f', needle_pos[i], 'b', needle_pos[i]-currentOffset);
+					on_front[i] = false;
+					needle_pos[i] = needle_pos[i] - currentOffset;
+				//}
+			}
+			currentOffset = increasing ? (minRacking-1) : (maxRacking+1);
+			increasing ? min_to_max_pass(tempGoal, 0) : max_to_min_pass(tempGoal, 0);//assume start from zero, like we always start
 		}
-		currentOffset = increasing ? (minRacking-1) : (maxRacking+1);
-		increasing ? min_to_max_pass(tempGoal, 0) : max_to_min_pass(tempGoal, 0);//assume start from zero, like we always start
 		middleGoal = Array.from(middleGoal, (x,i) => x - tempGoal[i]);
 		console.log("result after running processing");
 		print_goal(middleGoal, firsts);
