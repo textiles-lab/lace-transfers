@@ -285,14 +285,14 @@ function runTests(method, options) {
 	const path = require('path');
 	const fs = require('fs');
 
-	if ('outDir' in options) {
+	/*if ('outDir' in options) {
 		console.assert(typeof(options.outDir) === 'string', "options.outDir should be a string");
 		let dirs = options.outDir.split(path.sep);
 		for (let i = 1; i <= dirs.length; ++i) {
 			let sub = path.join(dirs.slice(0,i));
 			fs.mkdirSync(sub); //will this error if subdir exists?
 		}
-	}
+	}*/
 
 	const skipCables = ('skipCables' in options ? Boolean(options.skipCables) : false);
 	const skipLace = ('skipLace' in options ? Boolean(options.skipLace) : false);
@@ -406,6 +406,7 @@ function runTests(method, options) {
 			if (options.outDir) {
 				//generate transfers file
 				let transfer_name = path.basename(filename, '.xfers');
+				console.log(options.outDir);
 				let results_file = path.join(options.outDir, transfer_name + '.xout');
 
 				//NOTE: explicitly building an object to avoid leaking any extra fields through from data
@@ -413,8 +414,10 @@ function runTests(method, options) {
 					offsets:data.offsets,
 					firsts:data.firsts,
 					orders:data.orders,
-					transferMax:data.transferMax
-				}) + '\n' + test_log.join('\n') + '\n';
+					transferMax:data.transferMax,
+					xferredStacks:test_log.xferredStacks,
+					xferredEmpty:test_log.xferredEmpty
+				}) + '\n' + test_log.log.join('\n') + '\n';
 
 				fs.writeFileSync(results_file, result_string);
 			}
