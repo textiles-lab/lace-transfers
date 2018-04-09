@@ -8,7 +8,7 @@
 #include <fstream>
 #include <assert.h>
 
-#define n_stitches 3
+#define n_stitches 6
 #define n_rack     8 
 #define Back_Bed  'b'
 #define Front_Bed 'f'
@@ -48,7 +48,74 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 			lower_bound_passes--;
 		}
 	}
+	std::vector<int> targets;
+	for(int i = 0; i < n_stitches; i++){
+		targets.push_back(i + offsets[i]);
+	}
+	if( !ignore_firsts){
+		std::set<int> ofs;
+		for(int i = 0; i < n_stitches; i++){
+			if(ofs.count( offsets[i])){
+				continue;
+			}
+			if(offsets[i] == 0 && !firsts[i]){ // and if it shares a target that wants to be first
+				ofs.insert(offsets[i]);
+			}
+			else if(offsets[i] != 0){
+				ofs.insert(offsets[i]);
+			}
+		}
+		std::cout<<"unique offsets"<<std::endl;
+		for(auto o : ofs){
+			std::cout<<o << " ";
+		}
+		std::cout<<std::endl;
+		lower_bound_passes = ofs.size();
 
+		// sanity check targets 
+	
+		for(int i = 0; i < n_stitches; i++){
+			if(firsts[i]){
+				bool not_stacked = true;
+				for(int j = 0; j < n_stitches; j++){
+					if( j == i ) continue;
+					if( firsts[j] && targets[j] == targets[i]){
+						assert(false && "two indices with the same target cannot both be first");
+					}
+					if(targets[j] == targets[i]){
+						not_stacked = false;
+					}
+				}
+				// no point of firsts being set if it is the only loop
+				if(not_stacked) firsts[i] = 0;
+			}
+		}
+	}
+	// sanity check that offsets do not have cables
+	{
+		int up = -INT32_MAX;
+		int dn =  INT32_MAX;
+		bool up_okay = true;
+		bool dn_okay = true;
+		for(int i = 0; i < n_stitches; i++){
+			if( targets[i] >= up ){
+				up = targets[i];
+			}
+			else{
+				up_okay = false;
+			}
+			if( targets[i] <= dn){
+				dn = targets[i];
+			}
+			else{
+				dn_okay = false;
+			}
+		}
+		if( !up_okay && !dn_okay ){
+			assert(false && "exhaustive search does not support cables!");
+		}
+		
+	}
 	std::cout << "lower bound = " << lower_bound_passes << std::endl;
 	struct State{
 		std::vector<int> currents;
@@ -119,9 +186,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		// you just finished knitting f1->fn, so direction is -ve
 		// if you did knit the first course in the opposite direction, 
 		// all the computation would still be self consistent 
+		if(xfers.size() == 0) return 0;
 		bool forwards = false;
 		int  parked_at = n_stitches;
-
+		bool source_is_front_bed = (Bed(xfers[0].first) == Front_Bed);
 		for(auto x : xfers){
 			assert( Bed(x.first) != Bed(x.second) && "can't xfer between same bed!");
 			int needs_rack =  Front(x) - Back(x);
@@ -132,24 +200,13 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 				// check direction, not important for the backend
 				// front-to-back and back-to-front might matter but staying
 				// consistent with generate-stats 
-				/*
-				if( forwards && Front(x) < parked_at){
-					// going the wrong way, so need to break pass 
+				if( (Bed(x.first) != Front_Bed) && source_is_front_bed){
 					p++;
-					forwards = !forwards;
-					parked_at = Front(x);
-					if( log ) {
-						std::cout<<"\t--break pass(direction1)--";;
+					source_is_front_bed = !source_is_front_bed;
+					if(log){
+						std::cout<<"\t--break pass( beds swapped )--";
 					}
 				}
-				else if( !forwards && Front(x) > parked_at){
-					p++;
-					forwards = !forwards;
-					parked_at = Front(x);
-					if( log ){
-						std::cout<<"\t--break pass(direction2)--";;
-					}
-				}*/
 			}
 			else{
 				// need one more pass to assign rack and direction will be flipped
@@ -157,6 +214,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 				forwards = !forwards;
 				parked_at = Front(x);
 				current_rack = needs_rack;
+				source_is_front_bed = (Bed(x.first) == Front_Bed);
 				if( log ){
 					std::cout<<"\t--break pass(racking)--";
 				}
@@ -276,7 +334,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 			// if transferring _to_ the front bed, the loop that wan'ts to go first
 			// has to go first on the stack
 			for(int i = 0; i < n_stitches; i++){
-				if( t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx])
+				if( i != idx && t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx])
 					if(log)
 					std::cout<<"cannot move because index " << i << " has same target and has already been moved to the same needle on the front bed (firsts will fail)"<<std::endl;
 					return false;
@@ -446,7 +504,6 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 
 int main(int argc, char* argv[]){
 
-	std::cout<<"argc = " << argc<<std::endl;
 	if(argc == 1 + 2*n_stitches +1){
 		 
 		std::vector<int> offsets;
@@ -463,7 +520,7 @@ int main(int argc, char* argv[]){
 	
 	if(argc < 2){	
 		
-		exhaustive( {1,0, -1}, {1, 0, 0} );	
+		exhaustive( {1,0, -1, 0, 0 , 1}, {1, 0, 0, 0, 0, 1} );	
 	}
 
 	return 0;
