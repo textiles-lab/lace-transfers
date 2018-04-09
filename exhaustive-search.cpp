@@ -127,7 +127,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 			std::cout<<Bed(x.first)<<Needle(x.first)<<" -> " << Bed(x.second) << Needle(x.second) << (forwards ? "  +   " : "  -  ");
 			}
 			if(needs_rack == current_rack){
-				// check direction
+				// check direction, not important for the backend
+				// front-to-back and back-to-front might matter but staying
+				// consistent with generate-stats 
+				/*
 				if( forwards && Front(x) < parked_at){
 					// going the wrong way, so need to break pass 
 					p++;
@@ -144,7 +147,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 					if( log ){
 						std::cout<<"\t--break pass(direction2)--";;
 					}
-				}
+				}*/
 			}
 			else{
 				// need one more pass to assign rack and direction will be flipped
