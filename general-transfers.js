@@ -189,10 +189,7 @@ function general_transfers(offsets, firsts, orders, limit, outXfer) {
 		let useLace = mappedOffsets.every(function(o){ return Math.abs(o) <= 1; });
 
 		if (useLace) {
-			lace_transfers(mappedOffsets, mappedFirsts,
-				function(i) { mappedXfer('f', i, 'b', i); },
-				function(i, ofs) { mappedXfer('b', i, 'f', i + ofs); }
-				);
+			lace_transfers(mappedOffsets, mappedFirsts, mappedXfer);
 		} else {
 			flat_transfers(mappedOffsets, mappedFirsts, mappedXfer);
 		}
