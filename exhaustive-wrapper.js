@@ -56,10 +56,20 @@ if (require.main === module){
 		let orders=[];
 		while(orders.length < offsets.length) orders.push(0)
 		limit = 1;
-		let options = {'ignoreFirsts':true, 'ignoreStacks':true,'skipCables':true};
+		let options = {'ignoreFirsts':false, 'ignoreStacks':true,'skipCables':true, 'ignoreEmpty':true};
 		testDriver.test(_exh_transfers, offsets, firsts, orders, limit, options);
 	}
 
-	test([-1,0,1],[0,0,0]);
+	test([-1,-2,1],[1,0,0]);
+	test([-1,-2,0],[0,1,0]);
+	test([1,0,-1],[0,0,1]);
+	test([1,0,-1],[0,1,0]);
+	test([1,0,-1],[1,0,0]);
 	test([-1,1,1],[0,0,0]);
+	test([-1,1,2],[0,0,0]);
+	test([-2,1,2],[0,0,0]);
+	test([-4,1,4],[0,0,0]);
+	test([-4,0,4],[0,0,0]);
+	test([-4,2,4],[0,0,0]);
+	test([0,-1,-2],[0,1,0]);
 }

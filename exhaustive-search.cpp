@@ -33,18 +33,16 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	assert( offsets.size() == firsts.size() && " offsets and firsts must have the same size " );
 	assert( offsets.size() == n_stitches && " number of stitches is fixed " );
 
+	bool ignore_firsts = false;
 	auto temp = offsets;
 	std::sort(temp.begin(), temp.end());
 	auto last = std::unique( temp.begin(), temp.end());
 	temp.erase(last, temp.end());
 	int lower_bound_passes = temp.size();
-	std::cout << "unique offsets = " ;
-	for(int i = 0; i < temp.size(); i++){
-		std::cout << temp[i] << " , ";
-	}
+	
 	std::cout<<std::endl;
 	int upper_bound_passes =  INT32_MAX; 
-
+	//TODO compute a better lower bound for when firsts exist
 	for(int i = 0; i < temp.size(); i++){
 		if(temp[i] == 0){
 			lower_bound_passes--;
@@ -66,6 +64,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		int p = 0;
 		for(int i = 0; i < s.offsets.size(); i++){
 			p += std::abs(s.offsets[i]);
+		}
+		if(!ignore_firsts){
+			// have not yet figured out how penalty will be accrued for mistakes on firsts
+			// but no move that causes a first problem is possible
 		}
 		return p;
 	};
@@ -207,24 +209,28 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		t.rack = ofs;
 		if(!state_respects_slack(t)) {
 			if(log)
-			std::cout<<"\t\t\t\tinitial state cannot be racked to ofs " << ofs << std::endl;
+			std::cout<<"\t\t\t\tinitial state cannot be racked to ofs " << ofs  << " current " << PrintCurrent(t)<< std::endl;
 			return false; // cannot rack current state 
 		}
+		int pb = t.beds[idx];
+		int pn = t.currents[idx];
 		t.beds[idx] = Opposite(t, idx);
-		// currently  idx + t.offsets[idx]  on the front bed is aligned to
-		//  idx + t.offsets[idx] + ofs on the back bed
+		// currently  current[idx]  on the back bed is aligned to
+		//  current[idx]  - ofs on the front bed
 		//  back to front: lose ofs, front to back: gain ofs 
+		//  Moved from back-bed to front-bed
 		if(t.beds[idx] == Front_Bed){
-			t.offsets[idx] += ofs;
-			t.currents[idx] -= ofs;
-		}
-		else{
 			t.offsets[idx] -= ofs;
 			t.currents[idx] += ofs;
 		}
+		// Moved from front-bed to back-bed
+		else{
+			t.offsets[idx] += ofs;
+			t.currents[idx] -= ofs;
+		}
 		if(!state_respects_slack(t)) {
 			if(log)
-			std::cout<<"\t\t\t\tnew state cannot be at racked ofs " << ofs << std::endl;
+			std::cout<<"\t\t\t\tnew state cannot be at racked ofs " << ofs << " current " << PrintCurrent(t) << std::endl;
 			return false; // cannot xfer at ofs rack 
 		}
 		// any new tangling ?
@@ -249,12 +255,49 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 			std::cout<<"\t\t\t\ttangling with next  " <<idx << " and " << next << std::endl;
 			return false;
 		}
-
-
-		// TODO overlapping loops have same destination
-		for(int i = 0; i < n_stitches; i++){
-			if( t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx] && t.offsets[i] != t.offsets[idx]) return false;
+		bool stacked = true;
+		if( firsts[idx] && !ignore_firsts){
+			stacked = false;
+			for(int i = 0; i < n_stitches; i++){
+				if(i!= idx && t.currents[i] == pn && t.beds[i] == pb ) stacked = true;
+			}
 		}
+
+		// stacked loops must have the same target
+		for(int i = 0; i < n_stitches; i++){
+			if( t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx] && t.offsets[i] != t.offsets[idx]) {
+				if(log)
+					std::cout<<"stacked loops " << i << " and " << idx << " have different targets"<<std::endl;
+				return false;
+		}
+		}
+
+		if(!stacked && !ignore_firsts && firsts[idx] && t.beds[idx] == Front_Bed){
+			// if transferring _to_ the front bed, the loop that wan'ts to go first
+			// has to go first on the stack
+			for(int i = 0; i < n_stitches; i++){
+				if( t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx])
+					if(log)
+					std::cout<<"cannot move because index " << i << " has same target and has already been moved to the same needle on the front bed (firsts will fail)"<<std::endl;
+					return false;
+			}
+		}
+		// if transferring _to_ the back bed, the loop that wan'ts to go first
+		// has to be the last on the stack, so if finally has to be stacked 
+		// but nobody has already gone yet that's a problem
+		if(!ignore_firsts && firsts[idx] && t.beds[idx] == Back_Bed){
+			// find all the indices that have the same target
+			int target = idx + offsets[idx];
+			for(int i = 0; i < n_stitches; i++){
+				if(i != idx && (i + offsets[i] == target) && ( t.currents[i] != t.currents[idx] || t.beds[i] != t.beds[idx])){
+					if(log)
+					std::cout<<"cannot move "<<idx<<" because index " << i << " has same target and has not yet been moved to the same needle on the back bed (firsts will fail)"<<std::endl;
+					return false;
+				}
+			}
+		}
+
+
 		return true;
 		
 	};
@@ -359,12 +402,12 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 					BN from = std::make_pair( top.beds[idx],  top.currents[idx]);
 					//front-to-back
 					if(top.beds[idx] == Front_Bed){
-						top.offsets[idx] -= ofs;
-						top.currents[idx] += ofs;
-					}
-					else{ //Back-to-front
 						top.offsets[idx] += ofs;
 						top.currents[idx] -= ofs;
+					}
+					else{ //Back-to-front
+						top.offsets[idx] -= ofs;
+						top.currents[idx] += ofs;
 					}
 					top.beds[idx] = Opposite(top, idx);
 					BN to = std::make_pair( top.beds[idx],  top.currents[idx]);
@@ -420,7 +463,7 @@ int main(int argc, char* argv[]){
 	
 	if(argc < 2){	
 		
-		exhaustive( {-1,-0, 1}, {0, 0, 0} );	
+		exhaustive( {1,0, -1}, {1, 0, 0} );	
 	}
 
 	return 0;
