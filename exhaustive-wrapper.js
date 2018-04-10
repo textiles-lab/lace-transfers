@@ -48,10 +48,12 @@ if (require.main === module){
 		 exhaustive_transfers( offsets, firsts, xfer);
 	}
 	
-	/*if (process.argv.length > 2){
+	if (process.argv.length > 2){
 		// needs somethin that skips anything longer than 6-8 stitches;
-	}*/
+		testDriver.runTests(_exh_transfers, {'skipCables':true, 'ignoreFirsts':true, 'ignoreStacks':true, 'ignoreEmpty':true, 'outDir':'results/exh'});
+	}
 
+	else{
 	function test(offsets, firsts){
 		let orders=[];
 		while(orders.length < offsets.length) orders.push(0)
@@ -62,6 +64,7 @@ if (require.main === module){
 		testDriver.test(_exh_transfers, offsets, firsts, orders, limit, options);
 	}
 
+	
 	test([-1,-2,1, 0, 0, 0],[1,0,0, 0, 0, 0]);
 	test([-1,-2,0, 0, 0, 0],[0,1,0, 0, 0, 0]);
 	test([1,0,-1, 0, 0, 0],[0,0,1, 0, 0, 0]);
@@ -74,5 +77,11 @@ if (require.main === module){
 	test([-4,0,0, 2, 1, 0],[0,0,0, 0, 1, 0]);
 	test([-4,2,1, 2, 1, 0],[0,1,0, 1, 0, 0]);
 	test([-4,2,1, 2, 1, 0],[0,1,0, 0, 0, 1]);
-	test([6,5,4, 3, 2, 1],[0,1,0, 0, 0, 0]);
+	test([6,5,4, 3, 2, 1],[0,0,0, 1, 0, 0]);
+	
+	}
+
+	
+
+
 }
