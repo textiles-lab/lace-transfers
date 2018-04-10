@@ -121,10 +121,13 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		std::vector<int> currents;
 		std::vector<int> offsets;
 		std::vector<char> beds;
+		// maintain machine state
+		std::map<BN, std::vector<int>> machine;
 		int left = 0;
 		int rack = 0;
 		int penalty = 0;
 		int passes = 0;
+		int est_passes = 0;
 		std::vector< std::pair< BN, BN> > xfers;
 	};
 	auto Penalty = [=](const State& s)->int{
@@ -179,6 +182,32 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		std::cout<<" ] ";
 		return '\t';
 	};
+	auto PrintMachine = [=](const State &s)->char{
+		std::cout<<" machine = [ ";
+		for(auto bn : s.machine){
+			std::cout<< Bed(bn.first)<<Needle(bn.first)<<"{";
+			for(auto i : bn.second) std::cout<<i<<",";
+			std::cout<<"} ,";
+		}
+		std::cout<<" ]";
+		return '\t';
+	};
+	
+	auto LowerBoundFromHere = [=](const State&s, bool log=false)->int{
+		// estimate of the cost from current state 
+		std::set<BN> ofs;
+		for(int i = 0; i < n_stitches; i++){
+			if(s.offsets[i] == 0 && s.beds[i] == Back_Bed){
+				ofs.insert(std::make_pair(s.beds[i], s.offsets[i]));
+			}
+			else if(s.offsets[i] != 0){
+				ofs.insert(std::make_pair(s.beds[i], s.offsets[i]));
+			}
+		}
+		// if not ignoring firsts, this is too low, but okay for conservative estimate
+		return ofs.size();
+			
+	};
 	auto Passes = [=](const std::vector<std::pair<BN,BN>>& xfers, bool log = false)->int{
 		// track passes assuming xfers are happening in sequence
 		int  p = 0;
@@ -231,6 +260,13 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		bool operator()(const State& lhs, const State& rhs) const
 		{
 			return lhs.penalty > rhs.penalty;
+		}
+	};
+	struct LessThanByEstimatedPasses
+	{
+		bool operator()(const State& lhs, const State& rhs) const
+		{
+			return lhs.passes + lhs.est_passes > rhs.passes + rhs.est_passes;
 		}
 	};
 	struct LessThanByPenaltyThenPasses
@@ -377,7 +413,8 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		return true;
 	};
 	
-	std::priority_queue< State, std::vector<State>, LessThanByPenalty > PQ;
+	//std::priority_queue< State, std::vector<State>, LessThanByPenalty > PQ;
+	std::priority_queue< State, std::vector<State>, LessThanByEstimatedPasses > PQ;
 	std::vector<State> successes;
 	State best_state;
 	int best_cost = INT32_MAX;
@@ -388,6 +425,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	first.beds.assign(n_stitches, Front_Bed);
 	for(int i = 0; i < n_stitches; i++){
 		first.currents.push_back(i);
+		first.machine[std::make_pair(Front_Bed, i)] = {i};
 	}
 	
 	PQ.push(first);
@@ -455,10 +493,24 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		for(int idx = 0; idx < n_stitches; idx++){
 			for(int ofs = -n_rack; ofs <= n_rack; ofs++){
 				State top = st;
+				//std::cout<<"Act on offsets : "<< PrintOffsets(top) << " " << PrintCurrent(top) << PrintMachine(top)<<std::endl;
+				BN from = std::make_pair( top.beds[idx],  top.currents[idx]);
+				//std::cout << "Working on idx " << idx << " ofs "<< ofs << " from: " << Bed(from)<<Needle(from) <<std::endl;
+				if(top.machine.count(from) == 0){
+					// let us see what led to this state
+					Passes(top.xfers, true);
+				}
+				assert(top.machine.count(from) != 0 && "from must have loops");
+				if( top.machine[from].empty()){
+					// don't add this state?
+					continue;
+				}
+
 				if( okay_to_move_index_by_offset(top, idx, ofs) ){
-					
-					BN from = std::make_pair( top.beds[idx],  top.currents[idx]);
+				
+					int prev_offset = top.offsets[idx];
 					//front-to-back
+					//std::cout<<"\t idx = "<<idx<<" "<< top.beds[idx] << top.currents[idx] << " moved to ";
 					if(top.beds[idx] == Front_Bed){
 						top.offsets[idx] += ofs;
 						top.currents[idx] -= ofs;
@@ -468,9 +520,39 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 						top.currents[idx] += ofs;
 					}
 					top.beds[idx] = Opposite(top, idx);
+					
+					
+					//std::cout<<" to-target: "<<top.beds[idx]<<top.currents[idx]<<std::endl;
 					BN to = std::make_pair( top.beds[idx],  top.currents[idx]);
-					top.xfers.push_back( std::make_pair( from, to) );
+			
+					auto froms = top.machine[from];
+					auto tos = top.machine[to];
+					std::reverse(froms.begin(), froms.end());
+					for(auto in : froms){
+						//if(in != idx){
+						//std::cout<<"\t\tidx = "<<idx<<" index " << in << " at from "<<top.beds[in] << top.currents[in] << " moved to target "<<std::endl;
+						//}
+						top.machine[to].push_back(in);
+						assert(in == idx || top.currents[in] == from.second);
+						assert(in == idx || top.beds[in] == from.first);
+						top.currents[in] = top.currents[idx];
+						top.beds[in] = top.beds[idx];
+						// if these didn't match this action would not have been possible
+						assert(in == idx || top.offsets[in] == prev_offset);
+						top.offsets[in] = top.offsets[idx];
+					}
+					top.xfers.push_back( std::make_pair(from, to));
+					top.machine[from].clear();
+
+					int already_passes = Passes(top.xfers);
+					int atleast_more_passes = LowerBoundFromHere(top) ;
+					if( already_passes + atleast_more_passes > upper_bound_passes){
+						continue; // well this state can't do better 
+					}
+					//std::cout<<"\tAfter action " << PrintMachine(top) << PrintCurrent(top) << std::endl;
 					top.penalty = Penalty(top);
+					top.passes =  already_passes;
+					top.est_passes = atleast_more_passes;
 					top.rack = ofs;	
 					auto s = make_signature(top);
 					// if state has been visited, skip it
@@ -520,7 +602,7 @@ int main(int argc, char* argv[]){
 	
 	if(argc < 2){	
 		n_stitches = 6;	
-		exhaustive( {1,0, -1, 0, 0 , 1}, {1, 0, 0, 0, 0, 1} );	
+		exhaustive( {1,0,-1, 1, 0, -1}, {1, 0,0, 0, 0, 1} , "exhmain.xfers");	
 	}
 
 	return 0;
