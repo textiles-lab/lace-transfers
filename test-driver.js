@@ -357,6 +357,7 @@ function runTests(method, options) {
 			let hasLong = false; //stitches with |offset| > maxRacking
 			let hasCables = false; //stitches that cross other stitches
 			let hasLace = false; //stitches that stack on other stitches
+			let isFinished = true; //clear out examples that are all zero offset and thus already done
 
 			let targets = {}; //for hasLace checking
 
@@ -366,6 +367,9 @@ function runTests(method, options) {
 				}
 				if (i > 0 && (i-1 + data.offsets[i-1] > i + data.offsets[i])) {
 					hasCables = true;
+				}
+				if (data.offsets[i] != 0) {
+					isFinished = false;
 				}
 
 				let t = (i + data.offsets[i]).toString();
@@ -383,6 +387,10 @@ function runTests(method, options) {
 				return;
 			}
 			if (hasLong && skipLong) {
+				stats.skipped += 1;
+				return;
+			}
+			if (isFinished) {
 				stats.skipped += 1;
 				return;
 			}

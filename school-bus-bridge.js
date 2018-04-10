@@ -18,7 +18,7 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 		print_goal(goal, firsts);
 		while (currentOffset < maxRacking) {
 			++currentOffset;
-			console.log(currentOffset - startOffset);
+			//console.log(currentOffset - startOffset);
 			for (let i = 0; i < goal.length; ++i) {
 				if (goal[i] == currentOffset-startOffset && !on_front[i]) {
 					xfer('b', needle_pos[i], 'f', needle_pos[i]+currentOffset);
@@ -33,7 +33,7 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 		print_goal(goal, firsts);
 		while (currentOffset >= minRacking) {
 			currentOffset--;
-			console.log(currentOffset - startOffset);
+			//console.log(currentOffset - startOffset);
 			for (let i = 0; i < goal.length; ++i) {
 				if (goal[i] == currentOffset - startOffset  && !on_front[i]) {
 					xfer('b', needle_pos[i], 'f', needle_pos[i]+currentOffset);
@@ -48,8 +48,8 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 	var increasing = true;
 	
 	var tempGoal = increasing ? make_right_leaning_decreases(offsets, firsts) : make_left_leaning_decreases(offsets, firsts);
-	console.log("result of processing");
-	print_goal(tempGoal, firsts);
+	//console.log("result of processing");
+	//print_goal(tempGoal, firsts);
 	if (!is_done(tempGoal)){
 		for (let i = 0; i < offsets.length; ++i) {
 			xfer('f', i, 'b', i-currentOffset);
@@ -59,13 +59,13 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 		increasing ? min_to_max_pass(tempGoal, 0, minRacking) : max_to_min_pass(tempGoal, 0, maxRacking);
 	}
 	var middleGoal = Array.from(offsets, (x,i) => x - tempGoal[i]);
-	console.log("result after running processing");
-	print_goal(middleGoal, firsts);
+	//console.log("result after running processing");
+	//print_goal(middleGoal, firsts);
 	while (!is_done(middleGoal)) {
 		increasing = !increasing;
 		tempGoal = increasing ? make_right_leaning_decreases(middleGoal, firsts) : make_left_leaning_decreases(middleGoal, firsts);
-		console.log("result of processing");
-		print_goal(tempGoal, firsts);
+		//console.log("result of processing");
+		//print_goal(tempGoal, firsts);
 		
 		if (!is_done(tempGoal)){
 			currentOffset = 0;
@@ -80,8 +80,8 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 			increasing ? min_to_max_pass(tempGoal, 0) : max_to_min_pass(tempGoal, 0);//assume start from zero, like we always start
 		}
 		middleGoal = Array.from(middleGoal, (x,i) => x - tempGoal[i]);
-		console.log("result after running processing");
-		print_goal(middleGoal, firsts);
+		//console.log("result after running processing");
+		//print_goal(middleGoal, firsts);
 	}
 
 
