@@ -50,12 +50,16 @@ function enumerate_laces(n, save_at){
 		}
 		for(let i = 0; i < n; i++){
 			if(!first[i]) continue;
+			let stacked = false;
 			for(let j = 0; j < i-1; j++){
 				if(first[j] && target[i] == target[j]) return false;
+				if(target[j] == target[i]) stacked = true;
 			}
 			for(let j = i+1; j < n; j++){
 				if(first[j] && target[i] == target[j]) return false;
+				if(target[j] == target[i]) stacked = true;
 			}
+			if(!stacked) return false;
 		}
 		return true;
 	};
