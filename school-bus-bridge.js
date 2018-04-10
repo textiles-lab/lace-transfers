@@ -338,3 +338,5 @@ if (require.main === module) {
 	     [ 0, 0, 0, 0, 0, 1, 0, 0], 4);
 
 }
+
+module.exports.school_bus_bridge = multi_pass_transfers;
