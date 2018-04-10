@@ -1,11 +1,11 @@
 
 function getOffset(from_needle, to_needle) {
-	let f = from_needle.match(/^[fb](-?\d+)$/);
+	let f = from_needle.match(/^([fb]s?)(-?\d+)$/);
 	console.assert(f);
-	let t = to_needle.match(/^[fb](-?\d+)$/);
+	let t = to_needle.match(/^([fb]s?)(-?\d+)$/);
 	console.assert(t);
 
-	off = (f[0] === 'f' || f[0] === 'fs') ? parseInt(f[1]) - parseInt(t[1]) : parseInt(t[1]) - parseInt(f[1]);
+	off = (f[1] === 'f' || f[1] === 'fs') ? parseInt(f[2]) - parseInt(t[2]) : parseInt(t[2]) - parseInt(f[2]);
 
 	return off;
 }
@@ -159,7 +159,8 @@ if (require.main === module) {
 						needles['f' + i] = [new Stitch(i)];
 					}
 
-					let bedOffset = 0; //just assume we start at 0?
+					let bedOffset = getOffset(xfers[0][0], xfers[0][1]); //just assume we start at 0?
+					let previousBed = xfers[0][0].match(/^([fb]s?)(-?\d+)$/)[1];
 
 
 					for (let i = 0; i < xfers.length; ++i) {
@@ -179,8 +180,11 @@ if (require.main === module) {
 						}
 
 						let needle_offset = getOffset(xfers[i][0], xfers[i][1]);
-						if (needle_offset != bedOffset) {
+						let currentBed = xfers[i][0].match(/^([fb]s?)(-?\d+)$/)[1];
+						if (needle_offset != bedOffset || previousBed != currentBed) {
+							//console.log(previousBed + ' to ' + currentBed);
 							bedOffset = needle_offset;
+							previousBed = currentBed;
 							passes++; //TODO: does the racking action itself need another pass?
 						}
 					}
