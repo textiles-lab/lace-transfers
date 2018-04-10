@@ -8,7 +8,6 @@
 #include <fstream>
 #include <assert.h>
 
-#define n_stitches 6
 #define n_rack     8 
 #define Back_Bed  'b'
 #define Front_Bed 'f'
@@ -16,6 +15,7 @@
 typedef std::pair<char, int> BN;
 typedef std::pair <int, std::pair< std::vector<char> , std::vector<int>> > Signature;
 
+int n_stitches = 0;
 
 bool cse( std::vector<int> offsets, std::vector<int8_t> firsts, std::vector< std::pair<BN,BN> > *_xfers){
 
@@ -33,7 +33,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	assert( offsets.size() == firsts.size() && " offsets and firsts must have the same size " );
 	assert( offsets.size() == n_stitches && " number of stitches is fixed " );
 
-	bool ignore_firsts = false;
+	bool ignore_firsts = true;
 	auto temp = offsets;
 	std::sort(temp.begin(), temp.end());
 	auto last = std::unique( temp.begin(), temp.end());
@@ -504,22 +504,22 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 
 int main(int argc, char* argv[]){
 
-	if(argc == 1 + 2*n_stitches +1){
-		 
+	if(argc > 1 ){
+		n_stitches = atoi( argv[1] );
 		std::vector<int> offsets;
 		std::vector<int8_t>firsts;
-		for(int i = 1; i < 1 + n_stitches; i++){
+		for(int i = 2; i < 2 + n_stitches; i++){
 			offsets.push_back( atoi(argv[i]) );
 		}
-		for(int i = 1 + n_stitches; i < 1 +2*n_stitches; i++){
+		for(int i = 2 + n_stitches; i < 2 +2*n_stitches; i++){
 			firsts.push_back( (int8_t)atoi(argv[i]) );
 		}
 		
-		return exhaustive(offsets, firsts, argv[1+2*n_stitches]);
+		return exhaustive(offsets, firsts, argv[2+2*n_stitches]);
 	}
 	
 	if(argc < 2){	
-		
+		n_stitches = 6;	
 		exhaustive( {1,0, -1, 0, 0 , 1}, {1, 0, 0, 0, 0, 1} );	
 	}
 

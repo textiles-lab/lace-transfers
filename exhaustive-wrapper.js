@@ -3,13 +3,14 @@ var fs = require("fs");
 function exhaustive_transfers( offsets, firsts, xfer){
 
 
-	var args = "";
+	var args = " " + offsets.length.toString() + " ";;
 	for(let i = 0; i < offsets.length; i++){
 		args += offsets[i].toString() + " ";
 	}
 	for(let i = 0; i < firsts.length; i++){
 		args += firsts[i].toString() + " ";
 	}
+	console.log(args);
 	// why does sync not wokr
 	try{
 		child_process.execSync("./exhaustive " + args + " out.xfers", {stdio:[0,1,2]});
@@ -62,7 +63,7 @@ if (require.main === module){
 		// just to make it easier to figure out which pass is going on
 		console.log("\x1b[32m testing offsets:", offsets, "firsts", firsts,"\x1b[0m");
 		testDriver.test(_exh_transfers, offsets, firsts, orders, limit, options);
-	}
+	};
 
 	
 	test([-1,-2,1, 0, 0, 0],[1,0,0, 0, 0, 0]);
