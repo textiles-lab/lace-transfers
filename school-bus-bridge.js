@@ -328,7 +328,8 @@ if (require.main === module) {
 			skipCables:true,
 			skipLong:true,
 			ignoreStacks:true,
-			ignoreEmpty:true
+			ignoreEmpty:true,
+			outDir:'results/multipass'
 		});
 		return;
 	}
