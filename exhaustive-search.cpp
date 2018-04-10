@@ -216,36 +216,36 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		// if you did knit the first course in the opposite direction, 
 		// all the computation would still be self consistent 
 		if(xfers.size() == 0) return 0;
-		bool forwards = false;
-		int  parked_at = n_stitches;
 		bool source_is_front_bed = (Bed(xfers[0].first) == Front_Bed);
 		for(auto x : xfers){
 			assert( Bed(x.first) != Bed(x.second) && "can't xfer between same bed!");
 			int needs_rack =  Front(x) - Back(x);
 			if(log){
-			std::cout<<Bed(x.first)<<Needle(x.first)<<" -> " << Bed(x.second) << Needle(x.second) << (forwards ? "  +   " : "  -  ");
+			std::cout<<Bed(x.first)<<Needle(x.first)<<" -> " << Bed(x.second) << Needle(x.second) ;
 			}
+			bool beds_need_swapping = (((Bed(x.first) != Front_Bed) && source_is_front_bed)||( Bed(x.first) == Front_Bed && !source_is_front_bed));
 			if(needs_rack == current_rack){
 				// check direction, not important for the backend
 				// front-to-back and back-to-front might matter but staying
-				// consistent with generate-stats 
-				if( (Bed(x.first) != Front_Bed) && source_is_front_bed){
+				// consistent with generate-stats  
+				if(beds_need_swapping){
 					p++;
 					source_is_front_bed = !source_is_front_bed;
 					if(log){
 						std::cout<<"\t--break pass( beds swapped )--";
 					}
 				}
+				//else if(log){
+				//		std::cout<<"\t--same pass( same racking ) front-to-back:"<<source_is_front_bed << " bed-needed-swapping " << beds_need_swapping;
+				//}
 			}
 			else{
 				// need one more pass to assign rack and direction will be flipped
 				p++;
-				forwards = !forwards;
-				parked_at = Front(x);
 				current_rack = needs_rack;
 				source_is_front_bed = (Bed(x.first) == Front_Bed);
 				if( log ){
-					std::cout<<"\t--break pass(racking)--";
+					std::cout<<"\t--break pass(racking)-- " ;
 				}
 			}
 			if(log){
