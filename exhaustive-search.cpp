@@ -5,16 +5,17 @@
 #include <queue>
 #include <set>
 #include <map>
+#include <fstream>
 #include <assert.h>
 
-#define n_stitches 6
-#define n_rack     4 
+#define n_rack     8 
 #define Back_Bed  'b'
 #define Front_Bed 'f'
 
 typedef std::pair<char, int> BN;
 typedef std::pair <int, std::pair< std::vector<char> , std::vector<int>> > Signature;
 
+int n_stitches = 0;
 
 bool cse( std::vector<int> offsets, std::vector<int8_t> firsts, std::vector< std::pair<BN,BN> > *_xfers){
 
@@ -27,29 +28,94 @@ bool cse( std::vector<int> offsets, std::vector<int8_t> firsts, std::vector< std
 	return false;
 }
 
-bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
+bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::string outfile="out.xfers"){
 
 	assert( offsets.size() == firsts.size() && " offsets and firsts must have the same size " );
 	assert( offsets.size() == n_stitches && " number of stitches is fixed " );
 
+	bool ignore_firsts = true;
 	auto temp = offsets;
 	std::sort(temp.begin(), temp.end());
 	auto last = std::unique( temp.begin(), temp.end());
 	temp.erase(last, temp.end());
 	int lower_bound_passes = temp.size();
-	std::cout << "unique offsets = " ;
-	for(int i = 0; i < temp.size(); i++){
-		std::cout << temp[i] << " , ";
-	}
+	
 	std::cout<<std::endl;
 	int upper_bound_passes =  INT32_MAX; 
-
+	//TODO compute a better lower bound for when firsts exist
 	for(int i = 0; i < temp.size(); i++){
 		if(temp[i] == 0){
 			lower_bound_passes--;
 		}
 	}
+	std::vector<int> targets;
+	for(int i = 0; i < n_stitches; i++){
+		targets.push_back(i + offsets[i]);
+	}
+	if( !ignore_firsts){
+		std::set<int> ofs;
+		for(int i = 0; i < n_stitches; i++){
+			if(ofs.count( offsets[i])){
+				continue;
+			}
+			if(offsets[i] == 0 && !firsts[i]){ // and if it shares a target that wants to be first
+				ofs.insert(offsets[i]);
+			}
+			else if(offsets[i] != 0){
+				ofs.insert(offsets[i]);
+			}
+		}
+		std::cout<<"unique offsets"<<std::endl;
+		for(auto o : ofs){
+			std::cout<<o << " ";
+		}
+		std::cout<<std::endl;
+		lower_bound_passes = ofs.size();
 
+		// sanity check targets 
+	
+		for(int i = 0; i < n_stitches; i++){
+			if(firsts[i]){
+				bool not_stacked = true;
+				for(int j = 0; j < n_stitches; j++){
+					if( j == i ) continue;
+					if( firsts[j] && targets[j] == targets[i]){
+						assert(false && "two indices with the same target cannot both be first");
+					}
+					if(targets[j] == targets[i]){
+						not_stacked = false;
+					}
+				}
+				// no point of firsts being set if it is the only loop
+				if(not_stacked) firsts[i] = 0;
+			}
+		}
+	}
+	// sanity check that offsets do not have cables
+	{
+		int up = -INT32_MAX;
+		int dn =  INT32_MAX;
+		bool up_okay = true;
+		bool dn_okay = true;
+		for(int i = 0; i < n_stitches; i++){
+			if( targets[i] >= up ){
+				up = targets[i];
+			}
+			else{
+				up_okay = false;
+			}
+			if( targets[i] <= dn){
+				dn = targets[i];
+			}
+			else{
+				dn_okay = false;
+			}
+		}
+		if( !up_okay && !dn_okay ){
+			assert(false && "exhaustive search does not support cables!");
+		}
+		
+	}
 	std::cout << "lower bound = " << lower_bound_passes << std::endl;
 	struct State{
 		std::vector<int> currents;
@@ -65,6 +131,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 		int p = 0;
 		for(int i = 0; i < s.offsets.size(); i++){
 			p += std::abs(s.offsets[i]);
+		}
+		if(!ignore_firsts){
+			// have not yet figured out how penalty will be accrued for mistakes on firsts
+			// but no move that causes a first problem is possible
 		}
 		return p;
 	};
@@ -116,9 +186,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 		// you just finished knitting f1->fn, so direction is -ve
 		// if you did knit the first course in the opposite direction, 
 		// all the computation would still be self consistent 
+		if(xfers.size() == 0) return 0;
 		bool forwards = false;
 		int  parked_at = n_stitches;
-
+		bool source_is_front_bed = (Bed(xfers[0].first) == Front_Bed);
 		for(auto x : xfers){
 			assert( Bed(x.first) != Bed(x.second) && "can't xfer between same bed!");
 			int needs_rack =  Front(x) - Back(x);
@@ -126,22 +197,14 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 			std::cout<<Bed(x.first)<<Needle(x.first)<<" -> " << Bed(x.second) << Needle(x.second) << (forwards ? "  +   " : "  -  ");
 			}
 			if(needs_rack == current_rack){
-				// check direction
-				if( forwards && Front(x) < parked_at){
-					// going the wrong way, so need to break pass 
+				// check direction, not important for the backend
+				// front-to-back and back-to-front might matter but staying
+				// consistent with generate-stats 
+				if( (Bed(x.first) != Front_Bed) && source_is_front_bed){
 					p++;
-					forwards = !forwards;
-					parked_at = Front(x);
-					if( log ) {
-						std::cout<<"\t--break pass(direction1)--";;
-					}
-				}
-				else if( !forwards && Front(x) > parked_at){
-					p++;
-					forwards = !forwards;
-					parked_at = Front(x);
-					if( log ){
-						std::cout<<"\t--break pass(direction2)--";;
+					source_is_front_bed = !source_is_front_bed;
+					if(log){
+						std::cout<<"\t--break pass( beds swapped )--";
 					}
 				}
 			}
@@ -151,6 +214,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 				forwards = !forwards;
 				parked_at = Front(x);
 				current_rack = needs_rack;
+				source_is_front_bed = (Bed(x.first) == Front_Bed);
 				if( log ){
 					std::cout<<"\t--break pass(racking)--";
 				}
@@ -203,24 +267,28 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 		t.rack = ofs;
 		if(!state_respects_slack(t)) {
 			if(log)
-			std::cout<<"\t\t\t\tinitial state cannot be racked to ofs " << ofs << std::endl;
+			std::cout<<"\t\t\t\tinitial state cannot be racked to ofs " << ofs  << " current " << PrintCurrent(t)<< std::endl;
 			return false; // cannot rack current state 
 		}
+		int pb = t.beds[idx];
+		int pn = t.currents[idx];
 		t.beds[idx] = Opposite(t, idx);
-		// currently  idx + t.offsets[idx]  on the front bed is aligned to
-		//  idx + t.offsets[idx] + ofs on the back bed
+		// currently  current[idx]  on the back bed is aligned to
+		//  current[idx]  - ofs on the front bed
 		//  back to front: lose ofs, front to back: gain ofs 
+		//  Moved from back-bed to front-bed
 		if(t.beds[idx] == Front_Bed){
-			t.offsets[idx] += ofs;
-			t.currents[idx] -= ofs;
-		}
-		else{
 			t.offsets[idx] -= ofs;
 			t.currents[idx] += ofs;
 		}
+		// Moved from front-bed to back-bed
+		else{
+			t.offsets[idx] += ofs;
+			t.currents[idx] -= ofs;
+		}
 		if(!state_respects_slack(t)) {
 			if(log)
-			std::cout<<"\t\t\t\tnew state cannot be at racked ofs " << ofs << std::endl;
+			std::cout<<"\t\t\t\tnew state cannot be at racked ofs " << ofs << " current " << PrintCurrent(t) << std::endl;
 			return false; // cannot xfer at ofs rack 
 		}
 		// any new tangling ?
@@ -245,6 +313,49 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 			std::cout<<"\t\t\t\ttangling with next  " <<idx << " and " << next << std::endl;
 			return false;
 		}
+		bool stacked = true;
+		if( firsts[idx] && !ignore_firsts){
+			stacked = false;
+			for(int i = 0; i < n_stitches; i++){
+				if(i!= idx && t.currents[i] == pn && t.beds[i] == pb ) stacked = true;
+			}
+		}
+
+		// stacked loops must have the same target
+		for(int i = 0; i < n_stitches; i++){
+			if( t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx] && t.offsets[i] != t.offsets[idx]) {
+				if(log)
+					std::cout<<"stacked loops " << i << " and " << idx << " have different targets"<<std::endl;
+				return false;
+		}
+		}
+
+		if(!stacked && !ignore_firsts && firsts[idx] && t.beds[idx] == Front_Bed){
+			// if transferring _to_ the front bed, the loop that wan'ts to go first
+			// has to go first on the stack
+			for(int i = 0; i < n_stitches; i++){
+				if( i != idx && t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx])
+					if(log)
+					std::cout<<"cannot move because index " << i << " has same target and has already been moved to the same needle on the front bed (firsts will fail)"<<std::endl;
+					return false;
+			}
+		}
+		// if transferring _to_ the back bed, the loop that wan'ts to go first
+		// has to be the last on the stack, so if finally has to be stacked 
+		// but nobody has already gone yet that's a problem
+		if(!ignore_firsts && firsts[idx] && t.beds[idx] == Back_Bed){
+			// find all the indices that have the same target
+			int target = idx + offsets[idx];
+			for(int i = 0; i < n_stitches; i++){
+				if(i != idx && (i + offsets[i] == target) && ( t.currents[i] != t.currents[idx] || t.beds[i] != t.beds[idx])){
+					if(log)
+					std::cout<<"cannot move "<<idx<<" because index " << i << " has same target and has not yet been moved to the same needle on the back bed (firsts will fail)"<<std::endl;
+					return false;
+				}
+			}
+		}
+
+
 		return true;
 		
 	};
@@ -268,6 +379,8 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 	
 	std::priority_queue< State, std::vector<State>, LessThanByPenalty > PQ;
 	std::vector<State> successes;
+	State best_state;
+	int best_cost = INT32_MAX;
 
 	State first;
 	first.offsets = offsets;
@@ -317,6 +430,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 		if( Reached(st) ){
 			int p = Passes(st.xfers);
 			std::cout<<"Found a solution that needs " << p  <<" passes."<< std::endl;
+			if ( p < best_cost ){
+				best_cost = p;
+				best_state = st;
+			}
 			successes.push_back(st);
 			if( p < upper_bound_passes){
 				upper_bound_passes = p;
@@ -343,12 +460,12 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 					BN from = std::make_pair( top.beds[idx],  top.currents[idx]);
 					//front-to-back
 					if(top.beds[idx] == Front_Bed){
-						top.offsets[idx] -= ofs;
-						top.currents[idx] += ofs;
-					}
-					else{ //Back-to-front
 						top.offsets[idx] += ofs;
 						top.currents[idx] -= ofs;
+					}
+					else{ //Back-to-front
+						top.offsets[idx] -= ofs;
+						top.currents[idx] += ofs;
 					}
 					top.beds[idx] = Opposite(top, idx);
 					BN to = std::make_pair( top.beds[idx],  top.currents[idx]);
@@ -372,6 +489,14 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 		std::cout<<"Solution " << i << "\n" << Passes(successes[i].xfers, true) << std::endl;
 	}
 
+	// return a string 
+	std::ofstream out(outfile);
+	for(auto x : best_state.xfers){
+		
+		out<<Bed(x.first)<<Needle(x.first)<<" "<<Bed(x.second)<<Needle(x.second)<<"\n";
+
+	}
+	out.close();
 	return true;
 }
 
@@ -379,8 +504,24 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts ){
 
 int main(int argc, char* argv[]){
 
-	exhaustive( {-2,-1, 2, 3, 2, 1}, {0, 0, 0, 0, 0, 0} );	
-
+	if(argc > 1 ){
+		n_stitches = atoi( argv[1] );
+		std::vector<int> offsets;
+		std::vector<int8_t>firsts;
+		for(int i = 2; i < 2 + n_stitches; i++){
+			offsets.push_back( atoi(argv[i]) );
+		}
+		for(int i = 2 + n_stitches; i < 2 +2*n_stitches; i++){
+			firsts.push_back( (int8_t)atoi(argv[i]) );
+		}
+		
+		return exhaustive(offsets, firsts, argv[2+2*n_stitches]);
+	}
+	
+	if(argc < 2){	
+		n_stitches = 6;	
+		exhaustive( {1,0, -1, 0, 0 , 1}, {1, 0, 0, 0, 0, 1} );	
+	}
 
 	return 0;
 
