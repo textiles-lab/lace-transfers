@@ -14,14 +14,14 @@ function enumerate_laces(n, limit, save_at){
 		// this code should return in same index so not bothering sha256 and all that..but maybe should
 		let filename = save_at + 'all' + n + '-max' + limit + '_' + oi.toString() + '_' + fi.toString() + '.xfers';
 		fs.writeFileSync(filename, JSON.stringify(str) , 'utf8');
-		console.log(filename);
+		//console.log(filename);
 	}
 	
 	let no_cables = [];
 
-	//generate all patterns with no cables that stay within the range [0 .. n-1]:
-	let min_out = 0;
-	let max_out = n-1;
+	//generate all patterns with no cables that stay within the range:
+	let min_out = 0; //-1;
+	let max_out = n-1; //n;
 
 	let temp = [];
 	function rec() {
@@ -56,7 +56,7 @@ function enumerate_laces(n, limit, save_at){
 	console.log("Have " + no_cables.length + " patterns before firsts.");
 
 	no_cables.forEach(function(offsets, oi){
-		//console.log(offsets.join(" "));
+		console.log(offsets.join(" "));
 		let fi = 0;
 		let firsts = [];
 		function fill() {
