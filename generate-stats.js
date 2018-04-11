@@ -28,7 +28,7 @@ function computeLowerBound(offsets, firsts) {
 				hasNeg = true;
 			}
 			o.add(offsets[i]);
-			if (firsts[i]) {
+			/*if (firsts[i]) {
 				let stack_offsets = new Set();
 				let j = i-1;
 				let k = i+1;
@@ -43,12 +43,12 @@ function computeLowerBound(offsets, firsts) {
 				if (stack_offsets.has(0)) {
 					o.add(0);
 				}
-			}
+			}*/
 		}
 	}
-	if (hasPos && hasNeg) {
+	/*if (hasPos && hasNeg) {
 		o.add(0);
-	}
+	}*/
 	return (o.size==0) ? 0 : o.size+1//one extra for initial transfer to the back bed;
 }
 
