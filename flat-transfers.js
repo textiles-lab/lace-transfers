@@ -644,185 +644,25 @@ exports.flat_transfers = flat_transfers;
 //testing code:
 
 if (require.main === module) {
-	console.log("Doing some test flat transfers.");
-	function test(offsets, firsts) {
-		let needles = {};
-		for (let i = 0; i < offsets.length; ++i) {
-			needles['f' + i] = [i];
-		}
+	console.log("Doing some test transfers.");
 
-		function dumpNeedles() {
-			let minNeedle = 0;
-			let maxNeedle = offsets.length-1;
-			for (let n in needles) {
-				let m = n.match(/^[fb](-?\d+)$/);
-				console.assert(m);
-				let val = parseInt(m[1]);
-				minNeedle = Math.min(minNeedle, val);
-				maxNeedle = Math.max(maxNeedle, val);
-			}
+	const testDriver = require('./test-driver.js');
 
-			let layers = [];
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if (('b' + n) in needles) {
-					needles['b' + n].forEach(function(i, d){
-						while (d >= layers.length) layers.push("");
-						while (layers[d].length < n * 3) layers[d] += "   ";
-						layers[d] += " ";
-						if (i < 10) layers[d] += " " + i;
-						else layers[d] += i;
-					});
-				}
-			}
-			for (let l = layers.length - 1; l >= 0; --l) {
-				console.log(" back:" + layers[l]);
-			}
-			layers = [];
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if (('f' + n) in needles) {
-					needles['f' + n].forEach(function(i, d){
-						while (d >= layers.length) layers.push("");
-						while (layers[d].length < n * 3) layers[d] += "   ";
-						layers[d] += " ";
-						if (i < 10) layers[d] += " " + i;
-						else layers[d] += i;
-					});
-				}
-			}
-			for (let l = layers.length - 1; l >= 0; --l) {
-				console.log("front:" + layers[l]);
-			}
-
-			let infoI = "";
-			for (let n = minNeedle; n <= maxNeedle; ++n) {
-				if      (n < -10) infoI += n.toString();
-				else if (n <   0) infoI += " " + n.toString();
-				else if (n === 0) infoI += "  0";
-				else if (n <  10) infoI += "  " + n.toString();
-				else              infoI += " " + n.toString();
-			}
-			console.log("index:" + infoI);
-		}
-		let log = [];
-
-		function xfer(fromBed, fromIndex, toBed, toIndex) {
-			let cmd = "xfer " + fromBed + fromIndex + " " + toBed + toIndex;
-			console.log(cmd);
-			log.push(cmd);
-
-			console.assert((fromBed === 'f' && toBed === 'b') || (fromBed === 'b' && toBed === 'f'), "must xfer f <=> b");
-
-			//check for valid racking:
-			let at = [];
-			for (let i = 0; i < offsets.length; ++i) {
-				at.push(null);
-			}
-			for (var n in needles) {
-				let m = n.match(/^([fb])(-?\d+)$/);
-				console.assert(m);
-				needles[n].forEach(function(s){
-					console.assert(at[s] === null, "each stitch can only be in one place");
-					at[s] = {bed:m[1], needle:parseInt(m[2])};
-				});
-			}
-
-			let minRacking = -Infinity;
-			let maxRacking = Infinity;
-			for (let i = 1; i < offsets.length; ++i) {
-				if (at[i-1].bed === at[i].bed) continue;
-				let slack = Math.max(1, Math.abs( i+offsets[i] - (i-1+offsets[i-1]) ));
-				let back  = (at[i].bed === 'b' ? at[i].needle : at[i-1].needle);
-				let front = (at[i].bed === 'b' ? at[i-1].needle : at[i].needle);
-
-				//-slack <= back + racking - front <= slack
-				minRacking = Math.max(minRacking, -slack - back + front);
-				maxRacking = Math.min(maxRacking,  slack - back + front);
-			}
-			console.assert(minRacking <= maxRacking, "there is a valid racking for this stitch configuration");
-			let racking = (fromBed === 'f' ? fromIndex - toIndex : toIndex - fromIndex);
-			console.assert(minRacking <= racking && racking <= maxRacking, "required racking " + racking + " is outside [" + minRacking + ", " + maxRacking + "] valid range. (" + cmd + ")");
-
-
-
-			var from = needles[fromBed + fromIndex];
-			if (!((toBed + toIndex) in needles)) needles[toBed + toIndex] = [];
-			var to = needles[toBed + toIndex];
-
-			console.assert(from.length !== 0, "no reason to xfer empty needle");
-			console.assert(from.length === 1, "shouldn't ever xfer stack");
-
-			while (from.length) to.push(from.pop());
-
-			//dumpNeedles(); //DEBUG
-		}
-
-		let infoI = "";
-		let infoO = "";
-		let infoF = "";
-		for (let i = 0; i < offsets.length; ++i) {
-			infoI += " ";
-			infoO += " ";
-			infoF += " ";
-
-			if (i < 10) infoI += " " + i;
-			else infoI += i;
-
-			if (offsets[i] < 0) infoO += offsets[i];
-			else if (offsets[i] > 0) infoO += "+" + offsets[i];
-			else infoO += " 0";
-
-			if (firsts[i]) {
-				infoF += " *";
-			} else {
-				infoF += " .";
-			}
-		}
-		console.log(" index:" + infoI);
-		console.log("offset:" + infoO);
-		console.log(" first:" + infoF);
-
+	//adaptor to fit into testDriver
+	function _flat_transfers(offsets, firsts, orders, limit, xfer) {
 		flat_transfers(offsets, firsts, xfer);
-
-		dumpNeedles();
-
-		for (let i = 0; i < offsets.length; ++i) {
-			var n = needles['f' + (i + offsets[i])];
-			console.assert(n.indexOf(i) !== -1, "needle got to destination");
-			if (firsts[i]) {
-				console.assert(n.indexOf(i) === 0, "first got to destination first");
-			}
-		}
-
-		console.log(log.length + " transfers, avg " + (log.length/offsets.length) + " per needle.");
-
-		return log;
-
 	}
-	test([+1,+1,+2,+2,+3,+3,+2,+1],
-	     [ 0, 0, 0, 0, 0, 1, 0, 0]);
 
-	test([+1,+2,+3,+3,+2,+2,+1,+1],
-	     [ 0, 0, 0, 0, 1, 1, 0, 0]);
+	if (process.argv.length > 2) {
+		testDriver.runTests(_flat_transfers, {
+			skipCables:true,
+			skipLong:true,
+			//ignoreStacks:true,
+			//ignoreEmpty:true,
+			//ignoreFirsts:true,
+			outDir:'results/flat'
+		});
+		return;
+	}
 
-	test([-1,-1,-2,-2,-3,-3,-2,-1],
-	     [ 0, 0, 1, 1, 0, 0, 0, 0]);
-
-	test([ 0, 0,+1,+1,+2,+2,+1,+1, 0, 0,+1, 0],
-	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
-
-	test([-4,-3,-2,-1, 0,+1,+2,+3],
-	     [ 0, 0, 0, 0, 0, 0, 1, 0]);
-
-
-	test([+4,+4,+3,+3,+2,+2,+1,+1, 0,-1,-1,-2,-2,-3,-3],
-	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
-
-	test([-4,-4,-3,-3,-2,-2,-1,-1, 0,+1,+1,+2,+2,+3,+3],
-	     [ 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
-
-	test([ 0,-1,-1, 0, 1, 1, 1, 0,-1, 1, 0, 0],
-	     [ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0]);
-
- 	test([ 1, 0, 1, 0, 1, 0, 0,-1, 0,-1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1, 1, 0,-1],
-	     [ 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]);
 }
