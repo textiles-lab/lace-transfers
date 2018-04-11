@@ -13,7 +13,9 @@
 #define Front_Bed 'f'
 
 typedef std::pair<char, int> BN;
-typedef std::pair <int, std::pair< std::vector<char> , std::vector<int>> > Signature;
+
+// signature should use the machine state to work with firsts
+typedef std::pair<int, std::map< std::pair<char,int>, std::vector<int> > > Signature;
 
 int n_stitches = 0;
 
@@ -33,7 +35,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	assert( offsets.size() == firsts.size() && " offsets and firsts must have the same size " );
 	assert( offsets.size() == n_stitches && " number of stitches is fixed " );
 
-	bool ignore_firsts = true;
+	bool ignore_firsts = false;
 	auto temp = offsets;
 	std::sort(temp.begin(), temp.end());
 	auto last = std::unique( temp.begin(), temp.end());
@@ -397,9 +399,8 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	};
 
 	auto make_signature = [=](const State &s)->Signature{
-		auto pr = std::make_pair( s.beds, s.currents );
 		auto p = Passes(s.xfers);
-		return  std::make_pair( p, pr );
+		return  std::make_pair( p, s.machine );
 	};
 
 	auto Reached = [=](const State &s) ->bool{
@@ -436,7 +437,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	}
 
 	std::set< Signature > visited;
-	std::map < std::pair<std::vector<char>, std::vector<int> >, int > current_passes_map;
+	std::map <  std::map<BN, std::vector<int>>,   int > current_passes_map; // really just inverse sign
 
 	std::cout << "Starting penalty = " << first.penalty << std::endl;	
 
@@ -602,7 +603,7 @@ int main(int argc, char* argv[]){
 	
 	if(argc < 2){	
 		n_stitches = 6;	
-		exhaustive( {1,0,-1, 1, 0, -1}, {1, 0,0, 0, 0, 1} , "exhmain.xfers");	
+		exhaustive( {3,2,1, 1, 2, 1}, {0, 0,1, 0, 0, 0} , "exhmain.xfers");	
 	}
 
 	return 0;
