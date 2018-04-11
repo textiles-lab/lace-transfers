@@ -1,19 +1,22 @@
+// exhaustive-wrapper is a js wrapper that calls exhaustive ( the executive built for exhaustive-search.cpp )
+// the process is sync executed and results are dumped into out_file over which xfer is called
+// if running simultaneous versions of the wrapper, change out_file name
 var child_process = require("child_process");
 var fs = require("fs");
 function exhaustive_transfers( offsets, firsts, xfer){
 
-
+	var out_file = "out.xfers";
 	var args = " " + offsets.length.toString() + " ";;
 	for(let i = 0; i < offsets.length; i++){
 		args += offsets[i].toString() + " ";
 	}
 	for(let i = 0; i < firsts.length; i++){
-		args += firsts[i].toString() + " ";
+		args += (firsts[i] ? " 1 " : " 0  ");
 	}
 	console.log(args);
 	// why does sync not wokr
 	try{
-		child_process.execSync("./exhaustive " + args + " out.xfers", {stdio:[0,1,2]});
+		child_process.execSync("./exhaustive " + args + " "+ out_file, {stdio:[0,1,2]});
 	}
 	catch(c){
 		//  TODO check how this must be written, for now __seems__ to work
@@ -21,7 +24,7 @@ function exhaustive_transfers( offsets, firsts, xfer){
 	}
 
 	var xfers = [];
-	let res = fs.readFileSync('./out.xfers','utf8');
+	let res = fs.readFileSync("./"+out_file,'utf8');
 
 	res.split(/\s+/).forEach(function(bn){
 		if(bn==="")return;
@@ -51,7 +54,7 @@ if (require.main === module){
 	
 	if (process.argv.length > 2){
 		// needs somethin that skips anything longer than 6-8 stitches;
-		testDriver.runTests(_exh_transfers, {'skipCables':true, 'ignoreFirsts':true, 'ignoreStacks':true, 'ignoreEmpty':true, 'outDir':'results/exh'});
+		testDriver.runTests(_exh_transfers, {'skipCables':true, 'ignoreFirsts':false, 'ignoreStacks':true, 'ignoreEmpty':false, 'outDir':'results/exh-firsts'});
 	}
 
 	else{

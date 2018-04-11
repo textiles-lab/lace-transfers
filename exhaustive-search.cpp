@@ -13,7 +13,9 @@
 #define Front_Bed 'f'
 
 typedef std::pair<char, int> BN;
-typedef std::pair <int, std::pair< std::vector<char> , std::vector<int>> > Signature;
+
+// signature should use the machine state to work with firsts
+typedef std::pair<int, std::map< std::pair<char,int>, std::vector<int> > > Signature;
 
 int n_stitches = 0;
 
@@ -28,12 +30,12 @@ bool cse( std::vector<int> offsets, std::vector<int8_t> firsts, std::vector< std
 	return false;
 }
 
-bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::string outfile="out.xfers"){
+bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string outfile="out.xfers"){
 
 	assert( offsets.size() == firsts.size() && " offsets and firsts must have the same size " );
 	assert( offsets.size() == n_stitches && " number of stitches is fixed " );
 
-	bool ignore_firsts = true;
+	bool ignore_firsts = false;
 	auto temp = offsets;
 	std::sort(temp.begin(), temp.end());
 	auto last = std::unique( temp.begin(), temp.end());
@@ -73,7 +75,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		lower_bound_passes = ofs.size();
 
 		// sanity check targets 
-	
+
 		for(int i = 0; i < n_stitches; i++){
 			if(firsts[i]){
 				bool not_stacked = true;
@@ -269,6 +271,15 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 			return lhs.passes + lhs.est_passes > rhs.passes + rhs.est_passes;
 		}
 	};
+	
+	struct LessThanByEstimatedPassesThenPenalty
+	{
+		bool operator()(const State& lhs, const State& rhs) const
+		{
+			return (lhs.passes + lhs.est_passes == rhs.passes + rhs.est_passes )? (lhs.penalty > rhs.penalty) : (lhs.passes + lhs.est_passes > rhs.passes+rhs.est_passes);
+		}
+	};
+	
 	struct LessThanByPenaltyThenPasses
 	{
 		bool operator()(const State& lhs, const State& rhs) const
@@ -397,24 +408,37 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	};
 
 	auto make_signature = [=](const State &s)->Signature{
-		auto pr = std::make_pair( s.beds, s.currents );
 		auto p = Passes(s.xfers);
-		return  std::make_pair( p, pr );
+		return  std::make_pair( p, s.machine );
 	};
 
 	auto Reached = [=](const State &s) ->bool{
-		
+	
 		assert(Penalty(s) == s.penalty && "penalty is correct.");
-		if ( s.penalty > 0 ) return false;
+		if ( s.penalty > 0 ) {
+			return false;
+		}
 		
 		for( int i = 0; i < n_stitches; i++){
-			if(s.beds[i] == Back_Bed) return false;
+			if(s.beds[i] == Back_Bed){
+			
+				return false;
+			}
 		}
+		for(int i = 0; i < n_stitches; i++){
+			auto bn = std::make_pair(s.beds[i], s.currents[i]);
+			assert(!s.machine.at(bn).empty() && "machine state consistent with currents");
+			
+			if(firsts[i] &&  (s.machine.at(bn)[0] != i) ) {
+				return false;
+			}
+		}
+		
 		return true;
 	};
 	
 	//std::priority_queue< State, std::vector<State>, LessThanByPenalty > PQ;
-	std::priority_queue< State, std::vector<State>, LessThanByEstimatedPasses > PQ;
+	std::priority_queue< State, std::vector<State>, LessThanByEstimatedPassesThenPenalty > PQ;
 	std::vector<State> successes;
 	State best_state;
 	int best_cost = INT32_MAX;
@@ -436,7 +460,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	}
 
 	std::set< Signature > visited;
-	std::map < std::pair<std::vector<char>, std::vector<int> >, int > current_passes_map;
+	std::map <  std::map<BN, std::vector<int>>,   int > current_passes_map; // really just inverse sign
 
 	std::cout << "Starting penalty = " << first.penalty << std::endl;	
 
@@ -589,12 +613,12 @@ int main(int argc, char* argv[]){
 	if(argc > 1 ){
 		n_stitches = atoi( argv[1] );
 		std::vector<int> offsets;
-		std::vector<int8_t>firsts;
+		std::vector<int>firsts;
 		for(int i = 2; i < 2 + n_stitches; i++){
 			offsets.push_back( atoi(argv[i]) );
 		}
 		for(int i = 2 + n_stitches; i < 2 +2*n_stitches; i++){
-			firsts.push_back( (int8_t)atoi(argv[i]) );
+			firsts.push_back(atoi(argv[i]) );
 		}
 		
 		return exhaustive(offsets, firsts, argv[2+2*n_stitches]);
@@ -602,7 +626,7 @@ int main(int argc, char* argv[]){
 	
 	if(argc < 2){	
 		n_stitches = 6;	
-		exhaustive( {1,0,-1, 1, 0, -1}, {1, 0,0, 0, 0, 1} , "exhmain.xfers");	
+		exhaustive( {3,2,1, 1, 2, 1}, {0, 0,1, 0, 0, 0} , "exhmain.xfers");	
 	}
 
 	return 0;
