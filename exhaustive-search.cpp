@@ -30,7 +30,7 @@ bool cse( std::vector<int> offsets, std::vector<int8_t> firsts, std::vector< std
 	return false;
 }
 
-bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::string outfile="out.xfers"){
+bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string outfile="out.xfers"){
 
 	assert( offsets.size() == firsts.size() && " offsets and firsts must have the same size " );
 	assert( offsets.size() == n_stitches && " number of stitches is fixed " );
@@ -75,7 +75,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 		lower_bound_passes = ofs.size();
 
 		// sanity check targets 
-	
+
 		for(int i = 0; i < n_stitches; i++){
 			if(firsts[i]){
 				bool not_stacked = true;
@@ -404,13 +404,27 @@ bool exhaustive( std::vector<int> offsets, std::vector<int8_t> firsts , std::str
 	};
 
 	auto Reached = [=](const State &s) ->bool{
-		
+	
 		assert(Penalty(s) == s.penalty && "penalty is correct.");
-		if ( s.penalty > 0 ) return false;
+		if ( s.penalty > 0 ) {
+			return false;
+		}
 		
 		for( int i = 0; i < n_stitches; i++){
-			if(s.beds[i] == Back_Bed) return false;
+			if(s.beds[i] == Back_Bed){
+			
+				return false;
+			}
 		}
+		for(int i = 0; i < n_stitches; i++){
+			auto bn = std::make_pair(s.beds[i], s.currents[i]);
+			assert(!s.machine.at(bn).empty() && "machine state consistent with currents");
+			
+			if(firsts[i] &&  (s.machine.at(bn)[0] != i) ) {
+				return false;
+			}
+		}
+		
 		return true;
 	};
 	
@@ -590,12 +604,12 @@ int main(int argc, char* argv[]){
 	if(argc > 1 ){
 		n_stitches = atoi( argv[1] );
 		std::vector<int> offsets;
-		std::vector<int8_t>firsts;
+		std::vector<int>firsts;
 		for(int i = 2; i < 2 + n_stitches; i++){
 			offsets.push_back( atoi(argv[i]) );
 		}
 		for(int i = 2 + n_stitches; i < 2 +2*n_stitches; i++){
-			firsts.push_back( (int8_t)atoi(argv[i]) );
+			firsts.push_back(atoi(argv[i]) );
 		}
 		
 		return exhaustive(offsets, firsts, argv[2+2*n_stitches]);

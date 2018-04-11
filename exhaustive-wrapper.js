@@ -11,7 +11,7 @@ function exhaustive_transfers( offsets, firsts, xfer){
 		args += offsets[i].toString() + " ";
 	}
 	for(let i = 0; i < firsts.length; i++){
-		args += firsts[i].toString() + " ";
+		args += (firsts[i] ? " 1 " : " 0  ");
 	}
 	console.log(args);
 	// why does sync not wokr
