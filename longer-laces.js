@@ -35,10 +35,12 @@ function enumerate_laces(n, limit, save_at){
 			}
 		} else if (temp.length < n) {
 			//how many stitches are stacked already?
-			let s = 1;
-			while (s+1 < temp.length && temp[temp.length-(s+1)]-1 === temp[temp.length-s]) {
-				++s;
+			let s = temp.length-1;
+			while (s - 1 >= 0 && temp[s-1]-1 === temp[s]) {
+				s -= 1;
 			}
+			s = temp.length-s;
+
 			min = Math.max(temp[temp.length-1] - (s < 3 ? 1 : 0), min);
 			for (let o = min; o <= max; ++o) {
 				temp.push(o);
