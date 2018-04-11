@@ -285,14 +285,22 @@ function runTests(method, options) {
 	const path = require('path');
 	const fs = require('fs');
 
-	/*if ('outDir' in options) {
+	if ('outDir' in options) {
 		console.assert(typeof(options.outDir) === 'string', "options.outDir should be a string");
 		let dirs = options.outDir.split(path.sep);
 		for (let i = 1; i <= dirs.length; ++i) {
-			let sub = path.join(dirs.slice(0,i));
-			fs.mkdirSync(sub); //will this error if subdir exists?
+			let sub = path.join(...dirs.slice(0,i));
+			try {
+				fs.mkdirSync(sub); //will this error if subdir exists?
+			} catch (e) {
+				if (e.code === 'EEXIST') {
+					//okay; directory already exists.
+				} else {
+					throw e;
+				}
+			}
 		}
-	}*/
+	}
 
 	const skipCables = ('skipCables' in options ? Boolean(options.skipCables) : false);
 	const skipLace = ('skipLace' in options ? Boolean(options.skipLace) : false);

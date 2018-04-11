@@ -1,3 +1,7 @@
+#!/bin/sh
+':' //; exec "$(command -v nodejs || command -v node)" "$0" "$@"
+"use strict";
+
 //basic schoolbus algorithm
 function school_bus_basic(offsets, minRacking, maxRacking, xfer){
 	for (let i = 0; i < offsets.length; i++) {
