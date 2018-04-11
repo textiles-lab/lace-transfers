@@ -49,7 +49,7 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 	
 	var tempGoal = increasing ? make_right_leaning_decreases(offsets, firsts) : make_left_leaning_decreases(offsets, firsts);
 	//console.log("result of processing");
-	//print_goal(tempGoal, firsts);
+	print_goal(tempGoal, firsts);
 	if (!is_done(tempGoal)){
 		for (let i = 0; i < offsets.length; ++i) {
 			xfer('f', i, 'b', i-currentOffset);
@@ -60,12 +60,12 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 	}
 	var middleGoal = Array.from(offsets, (x,i) => x - tempGoal[i]);
 	//console.log("result after running processing");
-	//print_goal(middleGoal, firsts);
+	print_goal(middleGoal, firsts);
 	while (!is_done(middleGoal)) {
 		increasing = !increasing;
 		tempGoal = increasing ? make_right_leaning_decreases(middleGoal, firsts) : make_left_leaning_decreases(middleGoal, firsts);
 		//console.log("result of processing");
-		//print_goal(tempGoal, firsts);
+		print_goal(tempGoal, firsts);
 		
 		if (!is_done(tempGoal)){
 			currentOffset = 0;
@@ -81,7 +81,7 @@ function multi_pass_transfers(offsets, firsts, minRacking, maxRacking, xfer) {
 		}
 		middleGoal = Array.from(middleGoal, (x,i) => x - tempGoal[i]);
 		//console.log("result after running processing");
-		//print_goal(middleGoal, firsts);
+		print_goal(middleGoal, firsts);
 	}
 
 
@@ -105,7 +105,7 @@ function make_right_leaning_decreases(offsets, firsts) {
 			//console.log("index " + index + " is flattened");
 			--index;
 		}
-		else if (offsets[index] < maxHill) {
+		else if (offsets[index] < maxHill || firsts[index]) {
 			//no need to flatten, reset and check for decrease region
 			maxHill = Infinity;
 			newOffsets[index] = offsets[index];
@@ -166,7 +166,7 @@ function make_left_leaning_decreases(offsets, firsts) {
 			newOffsets[index] = minFloor;
 			++index;
 		}
-		else if (offsets[index] > minFloor) {
+		else if (offsets[index] > minFloor || firsts[index]) {
 			minFloor = -Infinity;
 			newOffsets[index] = offsets[index]
 			if (offsets[index] >= offsets[index-1]) {
@@ -274,6 +274,7 @@ function is_done(offsets) {
 }
 
 function print_goal(offsets, firsts) {
+	return;
 	let infoI = "";
 	let infoO = "";
 	let infoF = "";
