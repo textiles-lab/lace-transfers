@@ -242,13 +242,13 @@ function test(method, offsets, firsts, orders, limit, options) {
 			infoF += " .";
 		}
 	}
-	console.log(" index:" + infoI);
-	console.log("offset:" + infoO);
-	console.log(" first:" + infoF);
+	//console.log(" index:" + infoI);
+	//console.log("offset:" + infoO);
+	//console.log(" first:" + infoF);
 
 	method(offsets, firsts, orders, limit, xfer);
 
-	dumpNeedles();
+	//dumpNeedles();
 
 	let invalidFirsts = 0;
 
@@ -319,6 +319,9 @@ function runTests(method, options) {
 		total:0, //total test cases examined
 		ran:0, //test cases that were run
 		passed:0, //test cases that were run and passed
+		passedXferredStacks:0, //passed but had some xferred stacks
+		passedInvalidFirsts:0, //passed but had some invalid firsts
+		passedXferredEmpty:0, //passed but xferred some empty needles
 		failed:0, //test cases that were run and failed
 		skipped:0, //test cases that were skipped
 		invalid:0 //test cases that were skipped because the file was malformed
@@ -410,6 +413,15 @@ function runTests(method, options) {
 			let test_log;
 			try {
 				test_log = test(method, data.offsets, data.firsts, data.orders, data.transferMax, testOptions);
+				if (test_log.xferredStacks > 0) {
+					stats.passedXferredStacks += 1;
+				}
+				if (test_log.invalidFirsts > 0) {
+					stats.passedInvalidFirsts += 1;
+				}
+				if (test_log.xferredEmpty > 0) {
+					stats.passedXferredEmpty += 1;
+				}
 			} catch (e) {
 				console.log(e);
 				stats.failed += 1;
@@ -435,7 +447,7 @@ function runTests(method, options) {
 					xferredEmpty:test_log.xferredEmpty
 				}) + '\n' + test_log.log.join('\n') + '\n';
 
-				fs.writeFileSync(results_file, result_string);
+				fs.writeFileSync(results_file, result_string, 'utf8');
 			}
 		});
 	}
@@ -443,7 +455,10 @@ function runTests(method, options) {
 	console.log("Of " + stats.total + " test cases:\n"
 		+ "  Skipped " + stats.skipped + " tests, " + stats.invalid + " because of invalid file contents.\n"
 		+ "  Ran " + stats.ran + " tests, of which\n"
-		+ "     " + stats.passed + " passed and\n"
+		+ "     " + stats.passed + " passed\n"
+		+ (stats.passedXferredStacks ? "      (" + stats.passedXferredStacks + " of which transferred stacks)\n" : "")
+		+ (stats.passedXferredEmpty ? "      (" + stats.passedXferredEmpty + " of which transferred empty needles)\n" : "")
+		+ (stats.passedInvalidFirsts ? "      (" + stats.passedInvalidFirsts + " of which had invalid firsts)\n" : "")
 		+ "     " + stats.failed + " failed.");
 
 	return stats;
