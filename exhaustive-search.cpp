@@ -271,6 +271,15 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 			return lhs.passes + lhs.est_passes > rhs.passes + rhs.est_passes;
 		}
 	};
+	
+	struct LessThanByEstimatedPassesThenPenalty
+	{
+		bool operator()(const State& lhs, const State& rhs) const
+		{
+			return (lhs.passes + lhs.est_passes == rhs.passes + rhs.est_passes )? (lhs.penalty > rhs.penalty) : (lhs.passes + lhs.est_passes > rhs.passes+rhs.est_passes);
+		}
+	};
+	
 	struct LessThanByPenaltyThenPasses
 	{
 		bool operator()(const State& lhs, const State& rhs) const
@@ -429,7 +438,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	};
 	
 	//std::priority_queue< State, std::vector<State>, LessThanByPenalty > PQ;
-	std::priority_queue< State, std::vector<State>, LessThanByEstimatedPasses > PQ;
+	std::priority_queue< State, std::vector<State>, LessThanByEstimatedPassesThenPenalty > PQ;
 	std::vector<State> successes;
 	State best_state;
 	int best_cost = INT32_MAX;
