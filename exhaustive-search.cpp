@@ -196,8 +196,11 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	};
 	
 	auto LowerBoundFromHere = [=](const State&s, bool log=false)->int{
+		
 		// estimate of the cost from current state 
 		std::set<BN> ofs;
+		std::set<int> zeros;
+		std::set<int> fs;
 		for(int i = 0; i < n_stitches; i++){
 			if(s.offsets[i] == 0 && s.beds[i] == Back_Bed){
 				ofs.insert(std::make_pair(s.beds[i], s.offsets[i]));
@@ -205,9 +208,30 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 			else if(s.offsets[i] != 0){
 				ofs.insert(std::make_pair(s.beds[i], s.offsets[i]));
 			}
+			if(s.offsets[i] == 0 && s.beds[i] == Front_Bed){
+				zeros.insert(i);
+			}
+		    if(s.offsets[i] != 0 && firsts[i]){
+				fs.insert(i);
+			}
 		}
+		int min_passes  = ofs.size();
 		// if not ignoring firsts, this is too low, but okay for conservative estimate
-		return ofs.size();
+		if(!ignore_firsts){
+			bool add_one = false;
+			for(auto z : zeros){
+				for(auto f : fs){
+					if(s.currents[f]+s.offsets[f] == s.currents[z]){
+						add_one = true;
+					}
+				}
+			}
+			if(add_one){
+				min_passes += 1;
+			}
+			
+		}
+		return min_passes;
 			
 	};
 	auto Passes = [=](const std::vector<std::pair<BN,BN>>& xfers, bool log = false)->int{
