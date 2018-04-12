@@ -45,7 +45,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	int lower_bound_passes = temp.size();
 	
 	std::cout<<std::endl;
-	int upper_bound_passes =  INT32_MAX; 
+	int upper_bound_passes =  16; 
 	//TODO compute a better lower bound for when firsts exist
 	for(int i = 0; i < (int)temp.size(); i++){
 		if(temp[i] == 0){
@@ -94,6 +94,11 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 				if(not_stacked) firsts[i] = 0;
 			}
 		}
+		bool has_firsts = 0;
+		for(int i = 0; i < n_stitches; i++){
+			if(firsts[i]) has_firsts = true;
+		}
+		if(!has_firsts) ignore_firsts = true;
 	}
 	// sanity check that offsets do not have cables
 	{
@@ -402,9 +407,16 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 				if(log)
 					std::cout<<"stacked loops " << i << " and " << idx << " have different targets"<<std::endl;
 				return false;
-		}
+			}
 		}
 
+
+		return true;
+
+		// Do not need to do this now that reached checks for correctness
+		// Ideally should be useful to prune cases but my head is not working too well right now and I will potentially make a mistake
+		// TODO Fix this at some point
+		/*
 		if(!stacked && !ignore_firsts && firsts[idx] && t.beds[idx] == Front_Bed){
 			// if transferring _to_ the front bed, the loop that wan'ts to go first
 			// has to go first on the stack
@@ -433,7 +445,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 
 
 		return true;
-		
+		*/
 	};
 
 	auto make_signature = [=](const State &s)->Signature{
@@ -595,8 +607,10 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 						top.offsets[in] = top.offsets[idx];
 					}
 					top.xfers.push_back( std::make_pair(from, to));
-					top.machine[from].clear();
+				//	std::cout<<"\txfer "<<Bed(from)<<Needle(from)<<" -> "<<Bed(to)<<Needle(to)<<std::endl;
+				//	Passes(top.xfers , true);
 
+					top.machine[from].clear();
 					int already_passes = Passes(top.xfers);
 					int atleast_more_passes = LowerBoundFromHere(top) ;
 					if( already_passes + atleast_more_passes > upper_bound_passes){
@@ -655,7 +669,15 @@ int main(int argc, char* argv[]){
 	
 	if(argc < 2){	
 		n_stitches = 6;	
-		exhaustive( {3,2,1, 1, 2, 1}, {0, 0,1, 0, 0, 0} , "exhmain.xfers");	
+		//exhaustive( {3,2,1, 1, 2, 1}, {0, 0,1, 0, 0, 0} , "exhmain.xfers");	
+	    //exhaustive( {0,-1,-2,-2,-3,-3}, {0, 0, 0, 0, 0,  0}, "exhmain.xfers");
+		exhaustive({ 0, -1, -2, -2, -3, -4}, {  1,  0,   0,   0,   0,   1},"exhmain.xfers");
+	
+		// *              *
+		// 0 -1 -2 -2 -3 -4
+		// 0  0  0  1  1  1
+		//f0 f1 f2 f3 f4 f5
+	
 	}
 
 	return 0;
