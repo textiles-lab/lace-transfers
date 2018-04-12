@@ -245,13 +245,13 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	};
 	auto Passes = [=](const std::vector<std::pair<BN,BN>>& xfers, bool log = false)->int{
 		// track passes assuming xfers are happening in sequence
-		int  p = 0;
-		int  current_rack = 0;
+		int  p = 1;
 		// you just finished knitting f1->fn, so direction is -ve
 		// if you did knit the first course in the opposite direction, 
 		// all the computation would still be self consistent 
 		if(xfers.size() == 0) return 0;
 		bool source_is_front_bed = (Bed(xfers[0].first) == Front_Bed);
+		int  current_rack = Front(xfers[0])-Back(xfers[0]);
 		for(auto x : xfers){
 			assert( Bed(x.first) != Bed(x.second) && "can't xfer between same bed!");
 			int needs_rack =  Front(x) - Back(x);
@@ -535,7 +535,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 
 	
 		if( Reached(st) ){
-			int p = Passes(st.xfers);
+			int p = Passes(st.xfers, true);
 			std::cout<<"Found a solution that needs " << p  <<" passes."<< std::endl;
 			if ( p < best_cost ){
 				best_cost = p;
@@ -672,10 +672,10 @@ int main(int argc, char* argv[]){
 	}
 	
 	if(argc < 2){	
-		n_stitches = 6;	
+		n_stitches = 14;	
 		//exhaustive( {3,2,1, 1, 2, 1}, {0, 0,1, 0, 0, 0} , "exhmain.xfers");	
 	    //exhaustive( {0,-1,-2,-2,-3,-3}, {0, 0, 0, 0, 0,  0}, "exhmain.xfers");
-		exhaustive({ 0, -1, -2, -2, -3, -4}, {  1,  0,   0,   0,   0,   1},"exhmain.xfers");
+		exhaustive({ 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0}, {  0,0,0,0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0},"exhmain.xfers");
 	
 		// *              *
 		// 0 -1 -2 -2 -3 -4
