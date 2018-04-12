@@ -45,7 +45,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	int lower_bound_passes = temp.size();
 	
 	std::cout<<std::endl;
-	int upper_bound_passes =  16; 
+	int upper_bound_passes =  INT32_MAX; 
 	//TODO compute a better lower bound for when firsts exist
 	for(int i = 0; i < (int)temp.size(); i++){
 		if(temp[i] == 0){
@@ -350,8 +350,8 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 			std::cout<<"\t\t\t\tinitial state cannot be racked to ofs " << ofs  << " current " << PrintCurrent(t)<< std::endl;
 			return false; // cannot rack current state 
 		}
-		int pb = t.beds[idx];
-		int pn = t.currents[idx];
+		//int pb = t.beds[idx];
+		//int pn = t.currents[idx];
 		t.beds[idx] = Opposite(t, idx);
 		// currently  current[idx]  on the back bed is aligned to
 		//  current[idx]  - ofs on the front bed
@@ -393,14 +393,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 			std::cout<<"\t\t\t\ttangling with next  " <<idx << " and " << next << std::endl;
 			return false;
 		}
-		bool stacked = true;
-		if( firsts[idx] && !ignore_firsts){
-			stacked = false;
-			for(int i = 0; i < n_stitches; i++){
-				if(i!= idx && t.currents[i] == pn && t.beds[i] == pb ) stacked = true;
-			}
-		}
-
+		
 		// stacked loops must have the same target
 		for(int i = 0; i < n_stitches; i++){
 			if( t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx] && t.offsets[i] != t.offsets[idx]) {
@@ -417,6 +410,17 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 		// Ideally should be useful to prune cases but my head is not working too well right now and I will potentially make a mistake
 		// TODO Fix this at some point
 		/*
+		
+		   bool stacked = true;
+		   if( firsts[idx] && !ignore_firsts){
+		   stacked = false;
+		   for(int i = 0; i < n_stitches; i++){
+		   if(i!= idx && t.currents[i] == pn && t.beds[i] == pb ) stacked = true;
+		   }
+		   }
+
+   
+		   
 		if(!stacked && !ignore_firsts && firsts[idx] && t.beds[idx] == Front_Bed){
 			// if transferring _to_ the front bed, the loop that wan'ts to go first
 			// has to go first on the stack
