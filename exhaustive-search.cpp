@@ -19,18 +19,7 @@ typedef std::pair<int, std::map< std::pair<char,int>, std::vector<int> > > Signa
 
 int n_stitches = 0;
 
-bool cse( std::vector<int> offsets, std::vector<int8_t> firsts, std::vector< std::pair<BN,BN> > *_xfers){
 
-	// TODO
-	// do cse for getting an upper bound on the pass count, if this bound is equal to the lower
-	// bound, we are good to go just return that directly, probably use on of the newer algorithms
-	//
-	auto &xfers = *_xfers;
-
-	(void)xfers;
-
-	return false;
-}
 
 bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string outfile="out.xfers"){
 
@@ -125,6 +114,21 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 		}
 		
 	}
+
+	bool all_zeros = true;
+	for(int i = 0; i < n_stitches; i++){
+		if(offsets[i] != 0){
+			all_zeros = false;
+		}
+	}
+	if(all_zeros && ignore_firsts){
+		// ah need to write an empty file:
+
+		std::ofstream out(outfile);
+		out.close();
+		std::cout<<"all zeros, return!" << lower_bound_passes << std::endl;
+		return true;
+	}
 	std::cout << "lower bound = " << lower_bound_passes << std::endl;
 	struct State{
 		std::vector<int> currents;
@@ -173,6 +177,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 		if(s.beds[idx] == Front_Bed) return Back_Bed;
 		if(s.beds[idx] == Back_Bed) return Front_Bed;
 		assert(false && "Bed has to be back or front");
+		return Front_Bed;
 	};
 
 	auto PrintCurrent = [=](const State &s)->char{
@@ -290,6 +295,60 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 		return p;
 	
 	};
+
+	auto schoolbus = [=](const State &s)->State{
+		State r = s;
+		bool okay = true;
+		for(int i = 0; i <n_stitches; i++){
+			if(std::abs(s.offsets[i]) > n_rack){
+				okay = false;
+			}
+		}
+		if(!okay) return r;
+		std::cout<<"Trying school bus"<<std::endl;
+		for (int i = 0; i < n_stitches; i++){
+			auto from = std::make_pair( Front_Bed, i);
+			auto to  = std::make_pair( Back_Bed, i);
+			auto trans = std::make_pair(from, to);
+			auto f = r.machine[from];
+			assert(!f.empty());
+			r.beds[i] = Back_Bed;
+			r.machine[to].push_back(f[0]);
+			r.machine[from].clear();
+			r.xfers.push_back(trans);
+			
+		}
+		r.passes++;
+		
+		int ofs = -n_rack;
+		while(ofs <= n_rack){
+			for(int i = 0; i < n_stitches; i++){
+				if(r.offsets[i] == ofs){
+					auto to = std::make_pair( Front_Bed, i+ofs);
+					auto from = std::make_pair( Back_Bed, i );
+					auto t = std::make_pair(from, to);
+					auto f = r.machine[from];
+					for(auto e : f){
+					r.machine[to].push_back(e);
+					}
+					r.machine[from].clear();
+					r.xfers.push_back(t);
+					//todo update current and ofset	if(t.beds[idx] == Front_Bed){
+					r.offsets[i] -= ofs;
+					r.currents[i] += ofs;
+					r.beds[i] = Front_Bed;
+				}
+			}
+			ofs++;
+		}
+		r.passes = Passes(r.xfers, true);
+		r.penalty = Penalty(r);
+		
+		return r;
+	};
+	(void)schoolbus;
+
+	
 	struct LessThanByPenalty
 	{
 		bool operator()(const State& lhs, const State& rhs) const
@@ -317,7 +376,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	{
 		bool operator()(const State& lhs, const State& rhs) const
 		{
-			return (lhs.penalty == rhs.penalty ? lhs.passes > rhs.passes : lhs.penalty > rhs.penalty);
+			return (lhs.penalty == rhs.penalty ? lhs.passes + lhs.est_passes > rhs.passes + rhs.est_passes : lhs.penalty > rhs.penalty);
 		}
 	};
 
@@ -484,20 +543,33 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	
 	//std::priority_queue< State, std::vector<State>, LessThanByPenalty > PQ;
 	std::priority_queue< State, std::vector<State>, LessThanByEstimatedPassesThenPenalty > PQ;
+	//std::priority_queue< State, std::vector<State>, LessThanByPenaltyThenPasses > PQ;
 	std::vector<State> successes;
 	State best_state;
 	int best_cost = INT32_MAX;
 
 	State first;
 	first.offsets = offsets;
-	first.penalty = Penalty(first); 
+	first.penalty = Penalty(first);
 	first.beds.assign(n_stitches, Front_Bed);
 	for(int i = 0; i < n_stitches; i++){
 		first.currents.push_back(i);
 		first.machine[std::make_pair(Front_Bed, i)] = {i};
 	}
 	
+	first.est_passes = LowerBoundFromHere(first);
 	PQ.push(first);
+
+	//PQ.push(second);
+
+	// enqueue a bunch of safe states? 
+	//
+	{
+		//State sb = schoolbus(first);
+		//sb.est_passes = LowerBoundFromHere(sb);
+		//PQ.push(sb);
+	}
+	// also add a state that puts non-zero offsets on the back-bed 
 
 	if( lower_bound_passes < 0 ){
 		std::cout << "No transfers necessary, easy out" << std::endl;
@@ -580,6 +652,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 				if( okay_to_move_index_by_offset(top, idx, ofs) ){
 				
 					int prev_offset = top.offsets[idx];
+					(void)prev_offset;
 					//front-to-back
 					//std::cout<<"\t idx = "<<idx<<" "<< top.beds[idx] << top.currents[idx] << " moved to ";
 					if(top.beds[idx] == Front_Bed){
@@ -674,6 +747,8 @@ int main(int argc, char* argv[]){
 	}
 	
 	if(argc < 2){	
+		//n_stitches = 3;
+		//exhaustive({1,1,0},{0,0,0});
 		n_stitches = 24;	
 		//exhaustive( {3,2,1, 1, 2, 1}, {0, 0,1, 0, 0, 0} , "exhmain.xfers");	
 	    //exhaustive( {0,-1,-2,-2,-3,-3}, {0, 0, 0, 0, 0,  0}, "exhmain.xfers");
