@@ -1,3 +1,7 @@
+#!/bin/sh
+':' //; exec "$(command -v nodejs || command -v node)" "$0" "$@"
+"use strict";
+
 // exhaustive-wrapper is a js wrapper that calls exhaustive ( the executive built for exhaustive-search.cpp )
 // the process is sync executed and results are dumped into out_file over which xfer is called
 // if running simultaneous versions of the wrapper, change out_file name
@@ -61,7 +65,7 @@ if (require.main === module){
 	function test(offsets, firsts){
 		let orders=[];
 		while(orders.length < offsets.length) orders.push(0)
-		limit = 1;
+		let limit = 1;
 		let options = {'ignoreFirsts':false, 'ignoreStacks':true,'skipCables':true, 'ignoreEmpty':true};
 		// just to make it easier to figure out which pass is going on
 		console.log("\x1b[32m testing offsets:", offsets, "firsts", firsts,"\x1b[0m");
