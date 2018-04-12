@@ -6,15 +6,19 @@ var fs = require('fs');
 
 //make laces with n stitches and offsets bounded in absolute value by 'limit'
 
+
 function enumerate_laces(n, limit, save_at){
 	let order = Array(n).fill(0); // doesn't matter for non-cables	
 
+	let counter = 0;
 	function write(offsets, oi, firsts, fi) {
-		let str = {"offsets":offsets,"firsts":firsts,"orders":order,"transferMax":limit};
+		++counter;
 		// this code should return in same index so not bothering sha256 and all that..but maybe should
-		let filename = save_at + 'all' + n + '-max' + limit + '_' + oi.toString() + '_' + fi.toString() + '.xfers';
-		fs.writeFileSync(filename, JSON.stringify(str) , 'utf8');
-		//console.log(filename);
+		if (typeof(save_at) !== 'undefined') {
+			let str = {"offsets":offsets,"firsts":firsts,"orders":order,"transferMax":limit};
+			let filename = save_at + 'all' + n + '-max' + limit + '_' + oi.toString() + '_' + fi.toString() + '.xfers';
+			fs.writeFileSync(filename, JSON.stringify(str) , 'utf8');
+		}
 	}
 	
 	let no_cables = [];
@@ -58,7 +62,7 @@ function enumerate_laces(n, limit, save_at){
 	console.log("Have " + no_cables.length + " patterns before firsts.");
 
 	no_cables.forEach(function(offsets, oi){
-		console.log(offsets.join(" "));
+		//console.log(offsets.join(" "));
 		let fi = 0;
 		let firsts = [];
 		function fill() {
@@ -89,10 +93,13 @@ function enumerate_laces(n, limit, save_at){
 		}
 		fill();
 	});
+
+	console.log("Made " + counter + " cases.");
 };
 exports.enumerate_laces = enumerate_laces;
 if ( require.main === module ) {
 	
+	//enumerate_laces(10,8);
 
 	enumerate_laces(6,8,'../lace-transfer-tests/enum-laces-6/');
 	enumerate_laces(8,8,'../lace-transfer-tests/enum-laces-8/');
