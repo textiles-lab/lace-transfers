@@ -16,7 +16,7 @@ if(len(sys.argv) < 2):
     print("Example python plotting-passes.py flat flat-results.csv schoolbus schoolbus-results.csv essential-stitch-collection")
     #for example to compare optimal passes and lower bound
     print("Example python plotting-passes.py optimal all-laces-6.csv enum-6")
-   exit(0)
+    exit(0)
 
 frames = list()
 legends = ['lower-bound']
