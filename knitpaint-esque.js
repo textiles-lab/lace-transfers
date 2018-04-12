@@ -1,3 +1,7 @@
+#!/bin/sh
+':' //; exec "$(command -v nodejs || command -v node)" "$0" "$@"
+"use strict";
+
 //sort of what knitpaint does, but while respecting slack
 //doesn't respect stacking, but does minimize pass count and total transfers
 function knitpaint_esque(offsets, minRacking, maxRacking, xfer){

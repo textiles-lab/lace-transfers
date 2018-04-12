@@ -27,13 +27,15 @@ bool cse( std::vector<int> offsets, std::vector<int8_t> firsts, std::vector< std
 	//
 	auto &xfers = *_xfers;
 
+	(void)xfers;
+
 	return false;
 }
 
 bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string outfile="out.xfers"){
 
 	assert( offsets.size() == firsts.size() && " offsets and firsts must have the same size " );
-	assert( offsets.size() == n_stitches && " number of stitches is fixed " );
+	assert( offsets.size() == (size_t)n_stitches && " number of stitches is fixed " );
 
 	bool ignore_firsts = false;
 	auto temp = offsets;
@@ -45,7 +47,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	std::cout<<std::endl;
 	int upper_bound_passes =  INT32_MAX; 
 	//TODO compute a better lower bound for when firsts exist
-	for(int i = 0; i < temp.size(); i++){
+	for(int i = 0; i < (int)temp.size(); i++){
 		if(temp[i] == 0){
 			lower_bound_passes--;
 		}
@@ -134,7 +136,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	};
 	auto Penalty = [=](const State& s)->int{
 		int p = 0;
-		for(int i = 0; i < s.offsets.size(); i++){
+		for(int i = 0; i < (int)s.offsets.size(); i++){
 			p += std::abs(s.offsets[i]);
 		}
 		if(!ignore_firsts){
@@ -184,6 +186,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 		std::cout<<" ] ";
 		return '\t';
 	};
+	(void)PrintOffsets;
 	auto PrintMachine = [=](const State &s)->char{
 		std::cout<<" machine = [ ";
 		for(auto bn : s.machine){
@@ -194,6 +197,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 		std::cout<<" ]";
 		return '\t';
 	};
+	(void)PrintMachine;
 	
 	auto LowerBoundFromHere = [=](const State&s, bool log=false)->int{
 		
@@ -405,10 +409,11 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 			// if transferring _to_ the front bed, the loop that wan'ts to go first
 			// has to go first on the stack
 			for(int i = 0; i < n_stitches; i++){
-				if( i != idx && t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx])
+				if( i != idx && t.currents[i] == t.currents[idx] && t.beds[i] == t.beds[idx]) {
 					if(log)
 					std::cout<<"cannot move because index " << i << " has same target and has already been moved to the same needle on the front bed (firsts will fail)"<<std::endl;
 					return false;
+				}
 			}
 		}
 		// if transferring _to_ the back bed, the loop that wan'ts to go first
@@ -615,7 +620,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 	}
 
 	std::cout << "Found " << successes.size() << " potential solutions. " << std::endl;
-	for(int i = 0; i < successes.size(); i++){
+	for(int i = 0; i < (int)successes.size(); i++){
 		std::cout<<"Solution " << i << "\n" << Passes(successes[i].xfers, true) << std::endl;
 	}
 

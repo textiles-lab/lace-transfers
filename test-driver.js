@@ -24,6 +24,7 @@
 //  if options.skipCables is set, does not attempt test cases with cables
 //  if options.skipLace is set, does not attempt test cases with lace (== stacking loops)
 //  if options.skipLong is set, does not attempt test cases with offsets outside of maxTransfer
+//  if options.skipFinished is set, does not attempt test cases with offsets of all zero
 //  options.ignoreFirsts, options.ignoreStacks are passed to test
 //
 //  returns an object:
@@ -305,6 +306,7 @@ function runTests(method, options) {
 	const skipCables = ('skipCables' in options ? Boolean(options.skipCables) : false);
 	const skipLace = ('skipLace' in options ? Boolean(options.skipLace) : false);
 	const skipLong = ('skipLong' in options ? Boolean(options.skipLong) : false);
+	const skipFinished = ('skipFinished' in options ? Boolean(options.skipFinished) : false);
 
 	console.log("skipCables: " + skipCables); //DEBUG
 
@@ -324,6 +326,10 @@ function runTests(method, options) {
 		passedXferredEmpty:0, //passed but xferred some empty needles
 		failed:0, //test cases that were run and failed
 		skipped:0, //test cases that were skipped
+		skippedCables:0,
+		skippedLace:0,
+		skippedLong:0,
+		skippedFinished:0,
 		invalid:0 //test cases that were skipped because the file was malformed
 	};
 
@@ -391,18 +397,22 @@ function runTests(method, options) {
 
 			if (hasLace && skipLace) {
 				stats.skipped += 1;
+				stats.skippedLace += 1;
 				return;
 			}
 			if (hasCables && skipCables) {
 				stats.skipped += 1;
+				stats.skippedCables += 1;
 				return;
 			}
 			if (hasLong && skipLong) {
 				stats.skipped += 1;
+				stats.skippedLong += 1;
 				return;
 			}
-			if (isFinished) {
+			if (isFinished && skipFinished) {
 				stats.skipped += 1;
+				stats.skippedFinished += 1;
 				return;
 			}
 
@@ -454,6 +464,10 @@ function runTests(method, options) {
 
 	console.log("Of " + stats.total + " test cases:\n"
 		+ "  Skipped " + stats.skipped + " tests, " + stats.invalid + " because of invalid file contents.\n"
+		+ (stats.skippedCables ? "      (" + stats.skippedCables + " of which had cables)\n" : "")
+		+ (stats.skippedLace ? "      (" + stats.skippedLace + " of which had lace)\n" : "")
+		+ (stats.skippedLong ? "      (" + stats.skippedLong + " of which were long)\n" : "")
+		+ (stats.skippedFinished ? "      (" + stats.skippedFinished + " of which were already done)\n" : "")
 		+ "  Ran " + stats.ran + " tests, of which\n"
 		+ "     " + stats.passed + " passed\n"
 		+ (stats.passedXferredStacks ? "      (" + stats.passedXferredStacks + " of which transferred stacks)\n" : "")

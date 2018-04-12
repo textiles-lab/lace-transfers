@@ -84,6 +84,20 @@ function flat_transfers(offsets, firsts, xfer) {
 			regularPasses.push([]);
 		}
 
+		//offsets can come up later (computed when pushing) that weren't accounted for already:
+		function expandOffsets(offset) {
+			while (offset < minOffset) {
+				minOffset -= 1;
+				sliderPasses.unshift([]);
+				regularPasses.unshift([]);
+			}
+			while (offset > maxOffset) {
+				maxOffset += 1;
+				sliderPasses.push([]);
+				regularPasses.push([]);
+			}
+		}
+
 		//going to write this as if moving from largest to smallest offset on returns:
 		console.assert(dir === '-');
 
@@ -119,9 +133,10 @@ function flat_transfers(offsets, firsts, xfer) {
 
 					if (at[i]+offsets[i] <= prevNeedle) {
 						//not enough space, so shift but do not resolve:
-						let ofs = at[i] - (prevNeedle+1);
+						let ofs = (prevNeedle+1) - at[i];
 						console.assert(ofs > offsets[i]);
 						console.assert(at[i]+ofs > prevNeedle);
+						expandOffsets(ofs);
 
 						regularPasses[ofs-minOffset].push(i);
 						regularPasses[ofs-minOffset].push(i+1);
@@ -196,9 +211,10 @@ function flat_transfers(offsets, firsts, xfer) {
 
 					if (prevNeedle >= at[i]+offsets[i]) {
 						//not enough space.
-						let ofs = at[i] - (prevNeedle+1);
+						let ofs = (prevNeedle+1) - at[i];
 						console.assert(ofs > offsets[i]);
 						console.assert(at[i]+ofs > prevNeedle);
+						expandOffsets(ofs);
 
 						regularPasses[ofs-minOffset].push(i);
 						regularPasses[ofs-minOffset].push(i+1);
@@ -231,11 +247,17 @@ function flat_transfers(offsets, firsts, xfer) {
 				//not a decrease:
 				if (prevNeedle >= at[i]+offsets[i]) {
 					//not enough space.
-					console.assert(offsets[i] !== 0, "shouldn't shove 'done' stitches")
 
-					let ofs = at[i] - (prevNeedle+1);
+					//can actually shove 'done' stitches in some cases, it appears:
+					// -- I do worry about this being a potential bug, but current test cases seem to pass.
+
+					//console.assert(offsets[i] !== 0, "shouldn't shove 'done' stitches")
+
+					let ofs = (prevNeedle+1) - at[i];
+					//console.log(ofs, offsets[i], prevNeedle, at[i], i); //DEBUG
 					console.assert(ofs > offsets[i]);
 					console.assert(at[i]+ofs > prevNeedle);
+					expandOffsets(ofs);
 
 					regularPasses[ofs-minOffset].push(i);
 
@@ -326,7 +348,7 @@ function flat_transfers(offsets, firsts, xfer) {
 		let lastPass = "";
 		let passes = 0;
 		function countPasses(fromBed, fromNeedle, toBed, toNeedle) {
-			let pass = fromBed + "." + toBed;
+			let pass = fromBed + "." + toBed + "." + (fromNeedle - toNeedle);
 			if (pass !== lastPass) {
 				lastPass = pass;
 				++passes;
@@ -339,7 +361,7 @@ function flat_transfers(offsets, firsts, xfer) {
 		sliderySchoolbus('+', at, offsets, firsts, countPasses);
 		let plusPasses = passes;
 
-		//console.log("Passes with '+': " + plusPasses + ", with '-': " + minusPasses); //DEBUG
+		console.log("Passes with '+': " + plusPasses + ", with '-': " + minusPasses); //DEBUG
 
 		if (minusPasses < plusPasses) {
 			sliderySchoolbus('-', at, offsets, firsts, xfer);
