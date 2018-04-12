@@ -286,13 +286,9 @@ function flat_transfers(offsets, firsts, xfer) {
 
 		//execute passes in max-to-min order.
 		for (let ofs = maxOffset; ofs >= minOffset; --ofs) {
-			//first, drop to sliders:
-			sliderPasses[ofs-minOffset].forEach(function(i){
-				xfer('b', at[i], 'fs', at[i]+ofs);
-				at[i] += ofs;
-				offsets[i] -= ofs;
-			});
-			//then drop to needles:
+			//(order of hooks/sliders doesn't matter, all stitches are on different needles, so head to different destinations)
+
+			//first, drop to needles:
 			if (ofs === 0 && ofs === maxOffset) {
 				//not needed when first pass is zero pass
 			} else {
@@ -302,6 +298,12 @@ function flat_transfers(offsets, firsts, xfer) {
 					offsets[i] -= ofs;
 				});
 			}
+			//then, drop to sliders:
+			sliderPasses[ofs-minOffset].forEach(function(i){
+				xfer('b', at[i], 'fs', at[i]+ofs);
+				at[i] += ofs;
+				offsets[i] -= ofs;
+			});
 		}
 
 		//finally, do the slider returns:
