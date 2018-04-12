@@ -19,6 +19,8 @@ function school_bus_basic(offsets, minRacking, maxRacking, xfer){
 	}
 }
 
+module.exports.school_bus_basic = school_bus_basic;
+
 if (require.main === module) {
 	console.log("Doing some test transfers.");
 
