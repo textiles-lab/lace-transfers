@@ -522,7 +522,7 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 		
 		auto sgn = make_signature(st);
 		
-		if( current_passes_map.count( sgn.second ) && current_passes_map[sgn.second] < sgn.first){
+		if( current_passes_map.count( sgn.second ) && current_passes_map[sgn.second] <= sgn.first){
 			// reached here at a lower pass count, continue 
 			//std::cout<<"\t\tSkipping, reached state at lower pass count." << std::endl;
 			continue;
@@ -535,12 +535,14 @@ bool exhaustive( std::vector<int> offsets, std::vector<int> firsts , std::string
 
 	
 		if( Reached(st) ){
-			int p = Passes(st.xfers, true);
+			int p = Passes(st.xfers);
+			assert( p>= lower_bound_passes && "pass count is not lower than lower bound!");
 			std::cout<<"Found a solution that needs " << p  <<" passes."<< std::endl;
 			if ( p < best_cost ){
 				best_cost = p;
 				best_state = st;
 			}
+			
 			successes.push_back(st);
 			if( p < upper_bound_passes){
 				upper_bound_passes = p;
@@ -672,10 +674,10 @@ int main(int argc, char* argv[]){
 	}
 	
 	if(argc < 2){	
-		n_stitches = 14;	
+		n_stitches = 24;	
 		//exhaustive( {3,2,1, 1, 2, 1}, {0, 0,1, 0, 0, 0} , "exhmain.xfers");	
 	    //exhaustive( {0,-1,-2,-2,-3,-3}, {0, 0, 0, 0, 0,  0}, "exhmain.xfers");
-		exhaustive({ 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0}, {  0,0,0,0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0},"exhmain.xfers");
+		exhaustive({ 0,0,0,0,0,0,0,0,0,0,1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0}, { 0, 0,0,0,0,0,0,0,0,0,  0,0,1,0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0},"exhmain.xfers");
 	
 		// *              *
 		// 0 -1 -2 -2 -3 -4
