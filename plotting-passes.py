@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-
 from matplotlib import cm
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.style
 import matplotlib as mpl
 import sys
-mpl.style.use('seaborn-colorblind')
+#seaborn-colorblind, ggplot, fivethirtyeight, bmh seaborn-pastel are decent
+#mpl.style.use('bmh')
+mpl.style.use('bmh')
 
 if(len(sys.argv) < 2):
     print("Usage: ./plotting-passes.py name1 csv1 name2 csv2 ... x-label-name")
@@ -19,7 +20,7 @@ if(len(sys.argv) < 2):
     exit(0)
 
 frames = list()
-legends = ['lower-bound']
+legends = []
 n = len(sys.argv)-2
 x_label = sys.argv[-1]
 for i in range(1, n, 2):
@@ -29,17 +30,19 @@ for i in range(1, n, 2):
 
 
 fig, ax = plt.subplots()
-
-frames[0].plot( ax = ax, y='lower_bound', linewidth=2)
+fig.set_size_inches(8, 2)
 for frame in frames:
     frame.plot(ax=ax, y = 'passes')
 
-ax.legend(legends, frameon=False);
+frames[0].plot( ax = ax, y='lower_bound', linewidth=4)
+legends.append('lb')
+ax.legend(legends, frameon=False, loc='top left');
 
 x_axis = ax.axes.get_xaxis()
 x_axis.set_ticks([])
 #ax.set_ylim(0, 10)
 plt.xlabel(x_label)
-plt.ylabel("passes")
+plt.ylabel("Passes")
 plt.show()
+fig.savefig("plot.pdf", bbox_inches='tight' )
 
