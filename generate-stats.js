@@ -159,6 +159,7 @@ if (require.main === module) {
 						needles['f' + i] = [new Stitch(i)];
 					}
 
+					if( operation_count ){
 					let bedOffset = getOffset(xfers[0][0], xfers[0][1]); //just assume we start at 0?
 					let previousBed = xfers[0][0].match(/^([fb]s?)(-?\d+)$/)[1];
 
@@ -187,6 +188,7 @@ if (require.main === module) {
 							previousBed = currentBed;
 							passes++; //TODO: does the racking action itself need another pass?
 						}
+					}
 					}
 
 					console.log("passes: " + passes);
