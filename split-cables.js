@@ -31,6 +31,9 @@ function split_cables(offsets) {
 		cableOffsets.push(0);
 	}
 
+	//find out-of-order ranges:
+	let ranges = []; //{a: , b:, min:, max:}
+
 	for (let i = 0; i + 1 < offsets.length; ++i) {
 		if (i + offsets[i] <= i+1 + offsets[i+1]) continue; //no out-of-order-ness, no problem.
 		//Figure out the smallest "out-of-order" section containing i:
@@ -44,18 +47,47 @@ function split_cables(offsets) {
 
 		//grow the range until it can grow no further:
 		while (true) {
-			if (a > 0 && a-1 + offsets[a-1] >= min) {
+			if (ranges.length > 0 && ranges[ranges.length-1].b >= min) {
+				//overlapped previous range, so grow:
+				let r = ranges.pop();
+				a = r.a;
+				console.assert(b > r.b, "when growing, should not have been contained.");
+				min = Math.min(r.min, min);
+				max = Math.max(r.max, max);
+			} else if (a > 0 && a-1 + offsets[a-1] >= min) {
 				--a;
 				max = Math.max(max, a + offsets[a]);
 			} else if (b + 1 < offsets.length && b+1 + offsets[b+1] <= max) {
 				++b;
 				min = Math.min(min, b + offsets[b]);
+			} else if ((b-a) > (max-min) && b+1 < offsets.length) {
+				++b;
+				min = Math.min(min, b + offsets[b]);
+				max = Math.max(max, b + offsets[b]);
 			} else {
 				break;
 			}
 		}
 
-		//console.log(a,b); //DEBUG
+		ranges.push({a:a, b:b, min:min, max:max});
+
+		//console.log(ranges[ranges.length-1]); //DEBUG
+
+		i = b; //no need to go looking for out-of-order ranges within the range itself
+	}
+
+	ranges.forEach(function(range) {
+		let a = range.a;
+		let b = range.b;
+		let min = range.min;
+		let max = range.max;
+
+		//PARANOIA: verify that everything in range lands in [min,max]:
+		for (let i = a; i <= b; ++i) {
+			console.assert(min <= i + offsets[i] && i + offsets[i] <= max, "Everything in range ends up inside range.");
+		}
+
+		//console.log("Handling: ", range); //DEBUG
 
 		//So, the question becomes: what offset to place [a,b] at?
 		//anything that keeps dest in [min,max] will work.
@@ -67,17 +99,29 @@ function split_cables(offsets) {
 		}
 		avg /= (b-a+1);
 		avg = Math.round(avg);
+		//console.log(min, max, avg); //DEBUG
 
-		avg = Math.max(avg, min-a); //must keep even the leftmost stitch within [min,max]
-		avg = Math.min(avg, max-b); //must keep even the rightmost stitch within [min,max]
+		//a + avg >= min
+		//a >= min - a
+		//b + avg <= max
+		//avg <= max-b
+
+		avg = Math.max(avg, Math.min(min,a)-a); //must keep even the leftmost stitch within [min,max]
+		avg = Math.min(avg, Math.max(max,b)-b); //must keep even the rightmost stitch within [min,max]
+
+
+		for (let j = a; j <= b; ++j) {
+			console.assert(j + avg >= min, "stitch shouldn't move too far right");
+			console.assert(j + avg <= max, "stitch shouldn't move too far right");
+		}
+
+		//console.log(min, max, avg); //DEBUG
 
 		for (let j = a; j <= b; ++j) {
 			cableOffsets[j] = offsets[j] - avg;
 		}
 
-		i = b; //no need to go looking for out-of-order ranges within the range itself
-
-	}
+	});
 
 	//console.log(cableOffsets.join(" ")); //DEBUG
 

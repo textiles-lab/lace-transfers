@@ -102,7 +102,7 @@ if ( require.main === module ) {
 	//enumerate_laces(10,8);
 
 	enumerate_laces(6,8,'../lace-transfer-tests/enum-laces-6/');
-	enumerate_laces(8,8,'../lace-transfer-tests/enum-laces-8/');
+	//enumerate_laces(8,8,'../lace-transfer-tests/enum-laces-8/');
 	//enumerate_laces(10,8,'../lace-transfer-tests/enum-laces-10/'); //<--- takes many gigs
 
 }
