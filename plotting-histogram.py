@@ -24,33 +24,64 @@ legends = []
 n = len(sys.argv)-2
 x_label = sys.argv[-1]
 big_frame = pd.DataFrame()
+cols = []
 for i in range(1, n, 2):
     f =  pd.DataFrame.from_csv(sys.argv[i+1], parse_dates = False)
     frames.append(f.sort_values('lower_bound'))
     if i == 1:
         big_frame['lb']=frames[-1].lower_bound
         legends.append('lb')
+        cols.append(frames[-1].lower_bound)
+
     big_frame[sys.argv[i]]=frames[-1].passes
     legends.append(sys.argv[i]);
+    cols.append(frames[-1].passes)
+    cols[-1] = [max(0, min(x, 10)) for x in cols[-1]]
+fig, ax = plt.subplots(len(cols),1, sharex=True, sharey=True)
 
-fig, ax = plt.subplots()
-#fig.set_size_inches(8, 2)
+#fig.set_size_inches(4, 3)
 
 #big_frame.plot(ax=ax, kind='hist', stacked=False, alpha=0.85)
-big_frame.plot(ax=ax, kind='hist', stacked=True, bins=20)
-
+#big_frame.plot(ax=ax, kind='hist', stacked = False)
+#ax.hist(cols)
+plt.xticks([ 2, 4, 6,  8, 10], ['2', '4','6', '8', '>10'])
+cols.reverse()
+legends.reverse()
 #print(big_frame)
-#for frame in frames:
-#    frame.hist(ax=ax,column='passes', stacked=True)
+print(legends)
+i = 0
+for i in range(0,len(cols)):
+    ax[i].hist(cols[i], bins=[2,3,4,5,6,7,8,9,10, 11], color='#AE8BD9' if i%2 else '#36087F')
+    ax[i].set_yticks([])
+    #ax[i].set_yticks([0, 500, 1000])
+    ax[i].set_ylabel(legends[i])
+    ax[i].set_xlabel(x_label)
+    ax[i].grid(False)
+    ax[i].tick_params(axis=u'both', which=u'both',length=0)
+
+    #ax[i].legend(str(legends[i]), frameon=False)
+    #ax[i].set_title(legends[i])
+    #y_axis = ax[i].axes.get_y_axis()
+    #y_axis.set_ticks([])
+    #x_axis = ax[i].axes.get_x_axis()
+    #plt.xlabel(ax[i], "P")
+    #frame.hist(ax=ax[0,i], column='passes')
+    i = i + 1
+
+
+fig.subplots_adjust(hspace=0)
+
+for a in ax:
+    a.label_outer()
 #ax = big_frame.hist( column=legends,  stacked =True)
-ax.legend(legends, frameon=False);
-y_axis = ax.axes.get_yaxis()
-y_axis.set_ticks([])
+#ax.legend(legends, frameon=False);
+#y_axis = ax.axes.get_yaxis()
+#y_axis.set_ticks([])
 #x_axis = ax.axes.get_xaxis()
 #x_axis.set_ticks([])
 #ax.set_ylim(0, 10)
-plt.xlabel("Passes")
-plt.ylabel(x_label)
+#plt.xlabel("Passes")
+#plt.ylabel(x_label)
 plt.show()
 fig.savefig("plot.pdf", bbox_inches='tight' )
 
