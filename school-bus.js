@@ -4,6 +4,16 @@
 
 //basic schoolbus algorithm
 function school_bus_basic(offsets, minRacking, maxRacking, xfer){
+	var stock = true;
+	for (let i = 0; i < offsets.length; i++) {
+		if (offsets[i]!=0) {
+			stock = false;
+		}
+	}
+	if (stock) {
+		return;
+	}
+
 	for (let i = 0; i < offsets.length; i++) {
 		xfer('f', i, 'b', i);
 	}
