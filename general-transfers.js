@@ -11,7 +11,7 @@
 //Parameters:
 // offsets: array of offsets for each stitch index
 // firsts: array of the same length as offsets;
-//     if Boolean(offsets[i]) is true, stitch[i] will
+//     if Boolean(firsts[i]) is true, stitch[i] will
 //     arrive at its destination needle first.
 // orders: for cables, order values of inner stitches determine which passes in front (greater order passes in front)
 // limit: maximum racking value

@@ -363,7 +363,7 @@ function flat_transfers(offsets, firsts, xfer) {
 		sliderySchoolbus('+', at, offsets, firsts, countPasses);
 		let plusPasses = passes;
 
-		console.log("Passes with '+': " + plusPasses + ", with '-': " + minusPasses); //DEBUG
+		//console.log("Passes with '+': " + plusPasses + ", with '-': " + minusPasses); //DEBUG
 
 		if (minusPasses < plusPasses) {
 			sliderySchoolbus('-', at, offsets, firsts, xfer);
